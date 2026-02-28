@@ -162,6 +162,16 @@ const typeConfig = {
     icon: Clock,
     label: "Idle End",
   },
+  session_timeout: {
+    color: "bg-orange-100 text-orange-700 border-orange-200",
+    icon: Clock,
+    label: "Session Timeout",
+  },
+  session_resume: {
+    color: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    icon: Activity,
+    label: "Session Resume",
+  },
   screen_time: {
     color: "bg-violet-100 text-violet-700 border-violet-200",
     icon: Timer,
@@ -596,6 +606,14 @@ const AdminTracking = () => {
   }, [navActivities]);
 
   /* ── Session grouping ── */
+
+  /* ── Login History — every login event with full device + location ── */
+  const loginHistory = useMemo(() => {
+    return allActivities
+      .filter((a) => a.activityType === "login")
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  }, [allActivities]);
+
   const sessionMap = useMemo(() => {
     const map = {};
     allActivities.forEach((a) => {
@@ -1008,10 +1026,32 @@ const AdminTracking = () => {
                     title={`${d.deviceLabel || d.deviceId}\nSessions: ${d.sessionCount} · Logins: ${d.logins}\nFirst: ${fmtDate(d.firstSeen)}\nLast: ${fmtDate(d.lastSeen)}\nIPs: ${(d.ips || []).filter(Boolean).join(", ") || "—"}`}
                   >
                     <DeviceIcon className="w-3.5 h-3.5" />
-                    <span className="max-w-[180px] truncate">
-                      {d.browser || "Unknown"}
-                      {d.os ? ` · ${d.os}` : ""}
-                    </span>
+                    <div className="flex flex-col items-start">
+                      <span className="max-w-[180px] truncate">
+                        {d.browser || "Unknown"}
+                        {d.os ? ` · ${d.os}` : ""}
+                      </span>
+                      {((d.fullAddresses || []).filter(Boolean).length > 0 ||
+                        (d.cities || []).filter(Boolean).length > 0 ||
+                        (d.countries || []).filter(Boolean).length > 0) && (
+                        <span
+                          className={`text-[10px] max-w-[180px] truncate ${isActive ? "text-white/60" : "text-slate-400"}`}
+                          title={(d.fullAddresses || []).filter(Boolean).join(" | ")}
+                        >
+                          📍{" "}
+                          {(d.fullAddresses || []).filter(Boolean).length > 0
+                            ? (d.fullAddresses || [])
+                                .filter(Boolean)[0]
+                                .split(",")
+                                .slice(0, 3)
+                                .join(",")
+                            : [...(d.cities || []), ...(d.countries || [])]
+                                .filter(Boolean)
+                                .filter((v, i, a) => a.indexOf(v) === i)
+                                .join(", ")}
+                        </span>
+                      )}
+                    </div>
                     {d.screenResolution && (
                       <span
                         className={`text-[10px] ${isActive ? "text-white/70" : "text-slate-400"}`}
@@ -1038,47 +1078,256 @@ const AdminTracking = () => {
               (() => {
                 const dev = devices.find((d) => d.deviceId === selectedDevice);
                 if (!dev) return null;
+                const fmtDur = (ms) => {
+                  if (!ms) return "—";
+                  const s = Math.round(ms / 1000);
+                  if (s < 60) return `${s}s`;
+                  const m = Math.floor(s / 60);
+                  const rs = s % 60;
+                  if (m < 60) return `${m}m ${rs}s`;
+                  const h = Math.floor(m / 60);
+                  return `${h}h ${m % 60}m`;
+                };
                 return (
-                  <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 text-xs">
-                    <div className="bg-slate-50 rounded-xl p-2.5">
-                      <div className="text-slate-400 mb-0.5">Browser</div>
-                      <div className="font-semibold text-slate-700">
-                        {dev.browser || "—"}
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    {/* Device identity header */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center">
+                        {dev.deviceType === "Mobile" ? (
+                          <Smartphone className="w-5 h-5" />
+                        ) : dev.deviceType === "Tablet" ? (
+                          <Tablet className="w-5 h-5" />
+                        ) : (
+                          <Monitor className="w-5 h-5" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">
+                          {dev.deviceLabel || `${dev.browser} on ${dev.os}`}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          Device ID: {dev.deviceId}
+                        </p>
                       </div>
                     </div>
-                    <div className="bg-slate-50 rounded-xl p-2.5">
-                      <div className="text-slate-400 mb-0.5">OS</div>
-                      <div className="font-semibold text-slate-700">
-                        {dev.os || "—"}
+
+                    {/* All device details grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2.5 text-xs">
+                      <div className="bg-blue-50 rounded-xl p-2.5">
+                        <div className="text-blue-400 mb-0.5 font-medium">
+                          Browser
+                        </div>
+                        <div className="font-bold text-blue-700">
+                          {dev.browser || "—"}
+                        </div>
+                      </div>
+                      <div className="bg-purple-50 rounded-xl p-2.5">
+                        <div className="text-purple-400 mb-0.5 font-medium">
+                          OS
+                        </div>
+                        <div className="font-bold text-purple-700">
+                          {dev.os || "—"}
+                        </div>
+                      </div>
+                      <div className="bg-emerald-50 rounded-xl p-2.5">
+                        <div className="text-emerald-400 mb-0.5 font-medium">
+                          Device Type
+                        </div>
+                        <div className="font-bold text-emerald-700">
+                          {dev.deviceType || "—"}
+                        </div>
+                      </div>
+                      <div className="bg-amber-50 rounded-xl p-2.5">
+                        <div className="text-amber-400 mb-0.5 font-medium">
+                          Screen
+                        </div>
+                        <div className="font-bold text-amber-700">
+                          {dev.screenResolution || "—"}
+                        </div>
+                      </div>
+                      <div className="bg-rose-50 rounded-xl p-2.5">
+                        <div className="text-rose-400 mb-0.5 font-medium">
+                          Platform
+                        </div>
+                        <div className="font-bold text-rose-700">
+                          {dev.platform || "—"}
+                        </div>
+                      </div>
+                      <div className="bg-cyan-50 rounded-xl p-2.5">
+                        <div className="text-cyan-400 mb-0.5 font-medium">
+                          Language
+                        </div>
+                        <div className="font-bold text-cyan-700">
+                          {dev.language || "—"}
+                        </div>
                       </div>
                     </div>
-                    <div className="bg-slate-50 rounded-xl p-2.5">
-                      <div className="text-slate-400 mb-0.5">Type</div>
-                      <div className="font-semibold text-slate-700">
-                        {dev.deviceType || "—"}
+
+                    {/* Activity & session stats */}
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 text-xs mt-2.5">
+                      <div className="bg-violet-50 rounded-xl p-2.5 text-center">
+                        <div className="text-violet-400 mb-0.5 font-medium">
+                          Sessions
+                        </div>
+                        <div className="font-bold text-violet-700 text-lg">
+                          {dev.sessionCount}
+                        </div>
+                      </div>
+                      <div className="bg-green-50 rounded-xl p-2.5 text-center">
+                        <div className="text-green-400 mb-0.5 font-medium">
+                          Logins
+                        </div>
+                        <div className="font-bold text-green-700 text-lg">
+                          {dev.logins || 0}
+                        </div>
+                      </div>
+                      <div className="bg-blue-50 rounded-xl p-2.5 text-center">
+                        <div className="text-blue-400 mb-0.5 font-medium">
+                          Page Views
+                        </div>
+                        <div className="font-bold text-blue-700 text-lg">
+                          {dev.pageViews || 0}
+                        </div>
+                      </div>
+                      <div className="bg-orange-50 rounded-xl p-2.5 text-center">
+                        <div className="text-orange-400 mb-0.5 font-medium">
+                          Clicks
+                        </div>
+                        <div className="font-bold text-orange-700 text-lg">
+                          {dev.clicks || 0}
+                        </div>
+                      </div>
+                      <div className="bg-indigo-50 rounded-xl p-2.5 text-center">
+                        <div className="text-indigo-400 mb-0.5 font-medium">
+                          Screen Time
+                        </div>
+                        <div className="font-bold text-indigo-700 text-lg">
+                          {fmtDur(dev.totalDuration)}
+                        </div>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-2.5 text-center">
+                        <div className="text-slate-400 mb-0.5 font-medium">
+                          Events
+                        </div>
+                        <div className="font-bold text-slate-700 text-lg">
+                          {dev.totalActivities}
+                        </div>
                       </div>
                     </div>
-                    <div className="bg-slate-50 rounded-xl p-2.5">
-                      <div className="text-slate-400 mb-0.5">Sessions</div>
-                      <div className="font-semibold text-slate-700">
-                        {dev.sessionCount}
+
+                    {/* Network / Location info */}
+                    {/* Full Address — prominent display */}
+                    {(dev.fullAddresses || []).filter(Boolean).length > 0 && (
+                      <div className="bg-gradient-to-r from-rose-50 to-orange-50 rounded-xl p-3 mt-2.5 border border-rose-100">
+                        <div className="text-rose-500 mb-1 font-semibold text-xs flex items-center gap-1.5">
+                          📍 Exact Address
+                        </div>
+                        {(dev.fullAddresses || [])
+                          .filter(Boolean)
+                          .map((addr, i) => (
+                            <div
+                              key={i}
+                              className="text-sm font-medium text-slate-800 leading-relaxed"
+                            >
+                              {addr}
+                            </div>
+                          ))}
+                        {dev.latitudes &&
+                          dev.longitudes &&
+                          (dev.latitudes || []).filter(Boolean).length > 0 && (
+                            <a
+                              href={`https://www.google.com/maps?q=${(dev.latitudes || []).filter(Boolean)[0]},${(dev.longitudes || []).filter(Boolean)[0]}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 mt-1.5 text-[11px] text-blue-500 hover:text-blue-700 hover:underline transition-colors"
+                            >
+                              🗺️ Open in Google Maps ↗
+                            </a>
+                          )}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs mt-2.5">
+                      <div className="bg-slate-50 rounded-xl p-2.5">
+                        <div className="text-slate-400 mb-0.5 font-medium">
+                          🌐 IP Addresses
+                        </div>
+                        <div
+                          className="font-semibold text-slate-700 break-all"
+                          title={(dev.ips || []).filter(Boolean).join(", ")}
+                        >
+                          {(dev.ips || []).filter(Boolean).join(", ") || "—"}
+                        </div>
+                      </div>
+                      <div className="bg-orange-50 rounded-xl p-2.5">
+                        <div className="text-orange-400 mb-0.5 font-medium">
+                          📍 Cities
+                        </div>
+                        <div
+                          className="font-semibold text-orange-700"
+                          title={(dev.cities || []).filter(Boolean).join(", ")}
+                        >
+                          {(dev.cities || []).filter(Boolean).join(", ") || "—"}
+                        </div>
+                      </div>
+                      <div className="bg-emerald-50 rounded-xl p-2.5">
+                        <div className="text-emerald-400 mb-0.5 font-medium">
+                          🏳️ Countries
+                        </div>
+                        <div
+                          className="font-semibold text-emerald-700"
+                          title={(dev.countries || [])
+                            .filter(Boolean)
+                            .join(", ")}
+                        >
+                          {(dev.countries || []).filter(Boolean).join(", ") ||
+                            "—"}
+                        </div>
+                      </div>
+                      <div className="bg-purple-50 rounded-xl p-2.5">
+                        <div className="text-purple-400 mb-0.5 font-medium">
+                          🗺️ Regions
+                        </div>
+                        <div
+                          className="font-semibold text-purple-700"
+                          title={(dev.regions || []).filter(Boolean).join(", ")}
+                        >
+                          {(dev.regions || []).filter(Boolean).join(", ") ||
+                            "—"}
+                        </div>
+                      </div>
+                      <div className="bg-blue-50 rounded-xl p-2.5">
+                        <div className="text-blue-400 mb-0.5 font-medium">
+                          📡 ISP
+                        </div>
+                        <div
+                          className="font-semibold text-blue-700 truncate"
+                          title={(dev.isps || []).filter(Boolean).join(", ")}
+                        >
+                          {(dev.isps || []).filter(Boolean).join(", ") || "—"}
+                        </div>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-2.5">
+                        <div className="text-slate-400 mb-0.5 font-medium">
+                          📅 Active Period
+                        </div>
+                        <div className="font-semibold text-slate-700 text-[11px]">
+                          {fmtDate(dev.firstSeen)} — {fmtDate(dev.lastSeen)}
+                        </div>
                       </div>
                     </div>
-                    <div className="bg-slate-50 rounded-xl p-2.5">
-                      <div className="text-slate-400 mb-0.5">Last Seen</div>
-                      <div className="font-semibold text-slate-700">
-                        {fmtDate(dev.lastSeen)}
-                      </div>
-                    </div>
-                    <div className="bg-slate-50 rounded-xl p-2.5">
-                      <div className="text-slate-400 mb-0.5">IPs</div>
-                      <div
-                        className="font-semibold text-slate-700 truncate"
-                        title={(dev.ips || []).filter(Boolean).join(", ")}
-                      >
-                        {(dev.ips || []).filter(Boolean).join(", ") || "—"}
-                      </div>
-                    </div>
+
+                    {/* User Agent (collapsible) */}
+                    {dev.userAgent && (
+                      <details className="mt-2.5">
+                        <summary className="text-[11px] text-slate-400 cursor-pointer hover:text-slate-600 transition-colors">
+                          Show full User Agent
+                        </summary>
+                        <div className="mt-1 p-2 bg-slate-50 rounded-lg text-[10px] text-slate-500 font-mono break-all leading-relaxed">
+                          {dev.userAgent}
+                        </div>
+                      </details>
+                    )}
                   </div>
                 );
               })()}
@@ -1769,6 +2018,154 @@ const AdminTracking = () => {
         )}
       </Card>
 
+      {/* ── 8b. Login History ───────────────────────────────────────── */}
+      {loginHistory.length > 0 && (
+        <Card delay={0.27}>
+          <SectionHeader
+            icon={LogIn}
+            title="Login History — Device Details"
+            color="text-green-600"
+            badge={loginHistory.length}
+          />
+          <p className="text-[11px] text-slate-400 mb-3">
+            Every login event with full device &amp; network info. Click a row
+            to filter by that device.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 text-left">
+                  <th className="py-2 px-2 text-slate-500 font-semibold">#</th>
+                  <th className="py-2 px-2 text-slate-500 font-semibold">
+                    Time
+                  </th>
+                  <th className="py-2 px-2 text-slate-500 font-semibold">
+                    Device
+                  </th>
+                  <th className="py-2 px-2 text-slate-500 font-semibold">
+                    Browser
+                  </th>
+                  <th className="py-2 px-2 text-slate-500 font-semibold">OS</th>
+                  <th className="py-2 px-2 text-slate-500 font-semibold">
+                    Screen
+                  </th>
+                  <th className="py-2 px-2 text-slate-500 font-semibold">
+                    Type
+                  </th>
+                  <th className="py-2 px-2 text-slate-500 font-semibold">IP</th>
+                  <th className="py-2 px-2 text-slate-500 font-semibold">
+                    Location
+                  </th>
+                  <th className="py-2 px-2 text-slate-500 font-semibold">
+                    Session
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {loginHistory.map((ev, idx) => {
+                  const dev = ev.device || {};
+                  const loc = ev.location || {};
+                  const devId = dev.deviceId || "";
+                  const isActiveDevice = selectedDevice === devId;
+                  const DevIcon = dev.isMobile
+                    ? Smartphone
+                    : dev.deviceType === "Tablet"
+                      ? Tablet
+                      : Monitor;
+                  return (
+                    <tr
+                      key={ev._id || idx}
+                      onClick={() => {
+                        if (devId) {
+                          setSelectedDevice(isActiveDevice ? null : devId);
+                          setPage(1);
+                        }
+                      }}
+                      className={`border-b border-slate-50 transition-all cursor-pointer ${
+                        isActiveDevice
+                          ? "bg-violet-50 border-violet-200"
+                          : "hover:bg-slate-50"
+                      }`}
+                    >
+                      <td className="py-2 px-2 text-slate-400 font-mono">
+                        {idx + 1}
+                      </td>
+                      <td className="py-2 px-2 font-medium text-slate-700 whitespace-nowrap">
+                        {fmtDate(ev.timestamp)}
+                      </td>
+                      <td className="py-2 px-2">
+                        <div className="flex items-center gap-1.5">
+                          <div
+                            className={`w-6 h-6 rounded-md flex items-center justify-center ${
+                              isActiveDevice
+                                ? "bg-violet-500 text-white"
+                                : "bg-blue-50 text-blue-500"
+                            }`}
+                          >
+                            <DevIcon className="w-3 h-3" />
+                          </div>
+                          <span
+                            className="font-semibold text-slate-700 truncate max-w-[140px]"
+                            title={dev.deviceLabel || ""}
+                          >
+                            {dev.deviceLabel || dev.browser || "Unknown"}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-2 px-2 text-slate-600">
+                        {dev.browser || "—"}
+                      </td>
+                      <td className="py-2 px-2 text-slate-600">
+                        {dev.os || dev.platform || "—"}
+                      </td>
+                      <td className="py-2 px-2 text-slate-500">
+                        {dev.screenResolution ||
+                          `${dev.screenWidth || "?"}x${dev.screenHeight || "?"}`}
+                      </td>
+                      <td className="py-2 px-2">
+                        <span
+                          className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            dev.isMobile
+                              ? "bg-orange-100 text-orange-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
+                          {dev.deviceType ||
+                            (dev.isMobile ? "Mobile" : "Desktop")}
+                        </span>
+                      </td>
+                      <td className="py-2 px-2 font-mono text-slate-500 text-[11px]">
+                        {loc.ip || "—"}
+                      </td>
+                      <td
+                        className="py-2 px-2 text-slate-500 max-w-[200px]"
+                        title={loc.fullAddress || ""}
+                      >
+                        {loc.fullAddress ? (
+                          <span className="truncate block max-w-[200px]">
+                            {loc.fullAddress}
+                          </span>
+                        ) : (
+                          [loc.city, loc.country]
+                            .filter(Boolean)
+                            .join(", ") || "—"
+                        )}
+                      </td>
+                      <td
+                        className="py-2 px-2 text-[10px] text-slate-400 font-mono truncate max-w-[90px]"
+                        title={ev.sessionId}
+                      >
+                        {ev.sessionId ? ev.sessionId.slice(-8) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
       {/* ── 9. Session Analysis ─────────────────────────────────────────── */}
       <Card delay={0.29}>
         <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 -m-5 p-5 rounded-t-2xl border-b-2 border-indigo-200 mb-4">
@@ -1801,6 +2198,10 @@ const AdminTracking = () => {
               const hasLogout = s.activities.some(
                 (a) => a.activityType === "logout",
               );
+              const hasTimeout = s.activities.some(
+                (a) => a.activityType === "session_timeout",
+              );
+              const isEnded = hasLogout || hasTimeout;
 
               // Get all pages in this session with time
               const screenMap = {};
@@ -1891,7 +2292,12 @@ const AdminTracking = () => {
                               <LogOut className="w-3 h-3" /> Logout
                             </span>
                           )}
-                          {!hasLogout && (
+                          {hasTimeout && !hasLogout && (
+                            <span className="px-2.5 py-0.5 bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 text-xs font-semibold rounded-full flex items-center gap-1 border border-orange-200 shadow-sm">
+                              <Clock className="w-3 h-3" /> Timed Out
+                            </span>
+                          )}
+                          {!isEnded && (
                             <span className="px-2.5 py-0.5 bg-gradient-to-r from-amber-50 to-yellow-50 text-amber-700 text-xs font-semibold rounded-full flex items-center gap-1 border border-amber-200 shadow-sm animate-pulse">
                               <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
                               Active
@@ -1973,15 +2379,47 @@ const AdminTracking = () => {
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => {
-                          const box = document.getElementById(`asession-${i}`);
-                          box.classList.toggle("hidden");
-                        }}
-                        className="px-3 py-1.5 text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-xl transition-colors flex items-center gap-1 font-medium shadow-sm"
-                      >
-                        <ChevronDown className="w-3 h-3" /> Details
-                      </button>
+                      {/* Right side: Close reason + Details button */}
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        {/* Session close reason */}
+                        {isEnded ? (
+                          <div
+                            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 border shadow-sm ${
+                              hasLogout
+                                ? "bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border-red-200"
+                                : "bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border-orange-200"
+                            }`}
+                          >
+                            {hasLogout ? (
+                              <>
+                                <LogOut className="w-3.5 h-3.5" />
+                                <span>Closed: User Logged Out</span>
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>Closed: Idle Timeout (1hr)</span>
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="px-3 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-700 border border-emerald-200 shadow-sm animate-pulse">
+                            <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                            <span>Session Active</span>
+                          </div>
+                        )}
+                        <button
+                          onClick={() => {
+                            const box = document.getElementById(
+                              `asession-${i}`,
+                            );
+                            box.classList.toggle("hidden");
+                          }}
+                          className="px-3 py-1.5 text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-xl transition-colors flex items-center gap-1 font-medium shadow-sm"
+                        >
+                          <ChevronDown className="w-3 h-3" /> Details
+                        </button>
+                      </div>
                     </div>
 
                     <div id={`asession-${i}`} className="space-y-2">

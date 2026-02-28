@@ -19,17 +19,37 @@ class AdminActivityTracker {
     this._currentTitle = null;
     this._pageEnteredAt = null;
 
+    // Idle detection
+    this._idleTimer = null;
+    this._idleTimeout = 60 * 60 * 1000; // 1 hour idle → session ends
+    this._isIdle = false;
+    this._handleUserActivity = this._resetIdleTimer.bind(this);
+
     // Tab visibility
     this._handleVisibility = this._onVisibilityChange.bind(this);
     this._handleBeforeUnload = this._onBeforeUnload.bind(this);
+
+    // Geolocation (exact GPS/WiFi coordinates)
+    this._geoLocation = null; // { lat, lng }
+    this._geoWatchId = null;
+    this._geoAddress = null; // cached full address string
   }
 
   /* ── Initialize (call once after login / on app mount if logged in) ── */
   initialize() {
     if (this._initialized) return;
 
-    this._sessionId = `admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    // Persist session across page refreshes within the same tab
+    // Only create a new session on fresh login (when sessionStorage is empty)
+    const existingSession = sessionStorage.getItem("admin_session_id");
+    if (existingSession) {
+      this._sessionId = existingSession;
+    } else {
+      this._sessionId = `admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      sessionStorage.setItem("admin_session_id", this._sessionId);
+    }
     this._initialized = true;
+    this._isIdle = false;
 
     // Flush every 8 seconds
     this._batchTimer = setInterval(() => this._flush(), 8000);
@@ -38,7 +58,161 @@ class AdminActivityTracker {
     document.addEventListener("visibilitychange", this._handleVisibility);
     window.addEventListener("beforeunload", this._handleBeforeUnload);
 
+    // Idle detection — listen for user interactions
+    this._startIdleDetection();
+
+    // Request exact GPS/WiFi geolocation from the browser
+    this._startGeolocation();
+
     console.log("[AdminTracker] ✅ Initialized | session:", this._sessionId);
+  }
+
+  /* ── Start a brand new session (called only on login) ── */
+  startNewSession() {
+    this._sessionId = `admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    sessionStorage.setItem("admin_session_id", this._sessionId);
+    this._isIdle = false;
+    console.log("[AdminTracker] 🔄 New session started:", this._sessionId);
+  }
+
+  /* ── Idle detection ── */
+  _startIdleDetection() {
+    const events = [
+      "mousemove",
+      "mousedown",
+      "keydown",
+      "touchstart",
+      "scroll",
+      "click",
+    ];
+    events.forEach((evt) =>
+      document.addEventListener(evt, this._handleUserActivity, {
+        passive: true,
+      }),
+    );
+    this._resetIdleTimer();
+  }
+
+  _stopIdleDetection() {
+    const events = [
+      "mousemove",
+      "mousedown",
+      "keydown",
+      "touchstart",
+      "scroll",
+      "click",
+    ];
+    events.forEach((evt) =>
+      document.removeEventListener(evt, this._handleUserActivity),
+    );
+    if (this._idleTimer) {
+      clearTimeout(this._idleTimer);
+      this._idleTimer = null;
+    }
+  }
+
+  _resetIdleTimer() {
+    if (this._idleTimer) clearTimeout(this._idleTimer);
+
+    // If returning from idle → the old session was ended, start a fresh one
+    if (this._isIdle) {
+      this._isIdle = false;
+      this.startNewSession();
+      this._pageEnteredAt = Date.now();
+      this.track({
+        activityType: "session_resume",
+        pagePath: this._currentPath,
+        pageTitle: this._currentTitle,
+      });
+      console.log(
+        "[AdminTracker] ▶ User returned — new session:",
+        this._sessionId,
+      );
+    }
+
+    this._idleTimer = setTimeout(() => {
+      this._onIdle();
+    }, this._idleTimeout);
+  }
+
+  _onIdle() {
+    if (!this._initialized || this._isIdle) return;
+    this._isIdle = true;
+
+    // Record final screen time, mark session as timed out, flush, then end session
+    this._recordScreenTime();
+    this.track({ activityType: "session_timeout" });
+    this._flush();
+
+    // End the session — clear sessionStorage so this session is "closed"
+    sessionStorage.removeItem("admin_session_id");
+    this._sessionId = null;
+
+    console.log("[AdminTracker] ⏸ User idle 1hr — session ended");
+  }
+
+  /* ── Geolocation — exact lat/lng from browser ── */
+  _startGeolocation() {
+    if (!navigator.geolocation) {
+      console.warn("[AdminTracker] Geolocation not supported");
+      return;
+    }
+
+    // Get initial position
+    navigator.geolocation.getCurrentPosition(
+      (pos) => this._onGeoSuccess(pos),
+      (err) => console.warn("[AdminTracker] Geo error:", err.message),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 },
+    );
+
+    // Watch for position changes (e.g. moving laptop, mobile)
+    this._geoWatchId = navigator.geolocation.watchPosition(
+      (pos) => this._onGeoSuccess(pos),
+      () => {},
+      { enableHighAccuracy: false, timeout: 30000, maximumAge: 600000 },
+    );
+  }
+
+  _onGeoSuccess(position) {
+    const { latitude, longitude, accuracy } = position.coords;
+    this._geoLocation = {
+      lat: latitude,
+      lng: longitude,
+      accuracy: Math.round(accuracy),
+    };
+    console.log(
+      `[AdminTracker] 📍 Location: ${latitude.toFixed(5)}, ${longitude.toFixed(5)} (±${Math.round(accuracy)}m)`,
+    );
+
+    // Reverse geocode to get the full address (using free Nominatim API)
+    this._reverseGeocode(latitude, longitude);
+  }
+
+  async _reverseGeocode(lat, lng) {
+    try {
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&zoom=18`,
+        {
+          headers: { "Accept-Language": "en" },
+        },
+      );
+      const data = await resp.json();
+      if (data && data.display_name) {
+        this._geoAddress = data.display_name;
+        // Store structured address parts
+        this._geoAddressDetails = data.address || {};
+        console.log("[AdminTracker] 🏠 Address:", data.display_name);
+      }
+    } catch (err) {
+      console.warn("[AdminTracker] Reverse geocode failed:", err.message);
+    }
+  }
+
+  _stopGeolocation() {
+    if (this._geoWatchId != null) {
+      navigator.geolocation.clearWatch(this._geoWatchId);
+      this._geoWatchId = null;
+    }
   }
 
   /* ── Dispose (call on logout) ── */
@@ -47,8 +221,13 @@ class AdminActivityTracker {
     this._flush();
 
     if (this._batchTimer) clearInterval(this._batchTimer);
+    this._stopIdleDetection();
+    this._stopGeolocation();
     document.removeEventListener("visibilitychange", this._handleVisibility);
     window.removeEventListener("beforeunload", this._handleBeforeUnload);
+
+    // Clear session so next login creates a fresh one
+    sessionStorage.removeItem("admin_session_id");
 
     this._queue = [];
     this._sessionId = null;
@@ -56,6 +235,7 @@ class AdminActivityTracker {
     this._currentPath = null;
     this._currentTitle = null;
     this._pageEnteredAt = null;
+    this._isIdle = false;
     console.log("[AdminTracker] Disposed");
   }
 
@@ -128,6 +308,28 @@ class AdminActivityTracker {
       device: this._getDevice(),
     };
 
+    // Attach exact geolocation if available
+    if (this._geoLocation) {
+      activity.location = {
+        lat: this._geoLocation.lat,
+        lng: this._geoLocation.lng,
+        accuracy: this._geoLocation.accuracy,
+      };
+      if (this._geoAddress) {
+        activity.location.fullAddress = this._geoAddress;
+      }
+      if (this._geoAddressDetails) {
+        const ad = this._geoAddressDetails;
+        activity.location.road = ad.road || ad.street || "";
+        activity.location.neighbourhood = ad.neighbourhood || ad.suburb || "";
+        activity.location.city =
+          ad.city || ad.town || ad.village || ad.county || "";
+        activity.location.state = ad.state || "";
+        activity.location.postcode = ad.postcode || "";
+        activity.location.country = ad.country || "";
+      }
+    }
+
     if (pagePath || pageTitle) {
       activity.page = {};
       if (pagePath) activity.page.path = pagePath;
@@ -188,6 +390,8 @@ class AdminActivityTracker {
 
   /* ── Convenience methods ── */
   trackLogin() {
+    // Start a fresh session on every login
+    this.startNewSession();
     this.track({ activityType: "login" });
     this._flush();
   }
@@ -196,6 +400,8 @@ class AdminActivityTracker {
     this._recordScreenTime();
     this.track({ activityType: "logout" });
     this._flush();
+    // Clear session so next login gets a new one
+    sessionStorage.removeItem("admin_session_id");
   }
 
   trackButtonClick(element, value, path) {
@@ -272,8 +478,9 @@ class AdminActivityTracker {
 
   _onBeforeUnload() {
     if (!this._initialized) return;
+    // Only record screen time — do NOT send a fake logout.
+    // The session stays open; it will end on explicit logout or idle timeout.
     this._recordScreenTime();
-    this.track({ activityType: "logout" });
     this._flushSync();
   }
 
