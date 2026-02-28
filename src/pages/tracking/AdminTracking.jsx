@@ -44,6 +44,7 @@ import {
   Maximize2,
   Minimize2,
   X,
+  Tablet,
 } from "lucide-react";
 import api from "../../api/axiosInstance";
 import toast from "react-hot-toast";
@@ -361,6 +362,18 @@ const AdminTracking = () => {
   const [typeFilter, setTypeFilter] = useState("all");
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState(null);
+  const [selectedDevice, setSelectedDevice] = useState(null); // null = All Devices
+  // Timezone: auto-detect based on browser — Dubai (UTC+4) vs India (UTC+5:30)
+  const [timezone, setTimezone] = useState(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      return tz === "Asia/Kolkata" || tz === "Asia/Calcutta"
+        ? "Asia/Kolkata"
+        : "Asia/Dubai";
+    } catch {
+      return "Asia/Dubai";
+    }
+  });
   const autoRefreshRef = useRef(null);
 
   /* ── Fetch my tracking data ── */
@@ -369,12 +382,15 @@ const AdminTracking = () => {
       if (!silent) setLoading(true);
       try {
         // Build query string
-        let qs = `dateRange=${dateRange}&page=${page}&limit=30`;
-        let qsAll = `dateRange=${dateRange}&page=1&limit=500`;
+        const deviceParam = selectedDevice
+          ? `&deviceId=${encodeURIComponent(selectedDevice)}`
+          : "";
+        let qs = `dateRange=${dateRange}&page=${page}&limit=30${deviceParam}`;
+        let qsAll = `dateRange=${dateRange}&page=1&limit=500${deviceParam}`;
         if (customStartDate) {
           const extra = `&startDate=${encodeURIComponent(customStartDate)}${customEndDate ? `&endDate=${encodeURIComponent(customEndDate)}` : ""}${startTime ? `&startTime=${encodeURIComponent(startTime)}` : ""}${endTime ? `&endTime=${encodeURIComponent(endTime)}` : ""}`;
-          qs = `dateRange=custom&page=${page}&limit=30${extra}`;
-          qsAll = `dateRange=custom&page=1&limit=500${extra}`;
+          qs = `dateRange=custom&page=${page}&limit=30${extra}${deviceParam}`;
+          qsAll = `dateRange=custom&page=1&limit=500${extra}${deviceParam}`;
         }
         const [mainRes, allRes] = await Promise.all([
           api.get(`/admin-activities/my-tracking?${qs}`),
@@ -395,7 +411,15 @@ const AdminTracking = () => {
         setLoading(false);
       }
     },
-    [dateRange, page, customStartDate, customEndDate, startTime, endTime],
+    [
+      dateRange,
+      page,
+      customStartDate,
+      customEndDate,
+      startTime,
+      endTime,
+      selectedDevice,
+    ],
   );
 
   useEffect(() => {
@@ -425,7 +449,7 @@ const AdminTracking = () => {
   const fmtDate = (d) =>
     d
       ? new Date(d).toLocaleString("en-IN", {
-          timeZone: "Asia/Dubai",
+          timeZone: timezone,
           day: "2-digit",
           month: "short",
           year: "numeric",
@@ -437,7 +461,7 @@ const AdminTracking = () => {
   const fmtTime = (d) =>
     d
       ? new Date(d).toLocaleTimeString("en-IN", {
-          timeZone: "Asia/Dubai",
+          timeZone: timezone,
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
@@ -582,15 +606,45 @@ const AdminTracking = () => {
           activities: [],
           start: a.timestamp,
           end: a.timestamp,
+          device: a.device || null,
+          location: a.location || null,
         };
       map[sid].activities.push(a);
+      // Use the most recent activity's device info
+      if (
+        a.device &&
+        (!map[sid].device || new Date(a.timestamp) > new Date(map[sid].end))
+      ) {
+        map[sid].device = a.device;
+      }
+      if (
+        a.location &&
+        (!map[sid].location || new Date(a.timestamp) > new Date(map[sid].end))
+      ) {
+        map[sid].location = a.location;
+      }
       if (new Date(a.timestamp) < new Date(map[sid].start))
         map[sid].start = a.timestamp;
       if (new Date(a.timestamp) > new Date(map[sid].end))
         map[sid].end = a.timestamp;
     });
-    return Object.values(map).sort((a, b) => new Date(b.end) - new Date(a.end));
-  }, [allActivities]);
+    let sessions = Object.values(map).sort(
+      (a, b) => new Date(b.end) - new Date(a.end),
+    );
+
+    // Client-side device filter — ensures session list matches the selected device
+    if (selectedDevice) {
+      sessions = sessions.filter((s) => {
+        if (!s.device) return false;
+        // Match by deviceId if present
+        if (s.device.deviceId === selectedDevice) return true;
+        // Fallback: match browser_platform_type key for old data
+        const fallbackKey = `${s.device.browser || "Unknown"}_${s.device.platform || "Unknown"}_${s.device.isMobile ? "mobile" : "desktop"}`;
+        return fallbackKey === selectedDevice;
+      });
+    }
+    return sessions;
+  }, [allActivities, selectedDevice]);
 
   /* ── Filtered timeline ── */
   const filteredTimeline = useMemo(() => {
@@ -634,6 +688,7 @@ const AdminTracking = () => {
     activityByDay,
     topPages,
     deviceInfo,
+    devices,
     timeline,
     totalPages,
   } = data;
@@ -762,6 +817,29 @@ const AdminTracking = () => {
                 <option value="month">This Month</option>
                 <option value="all">All Time</option>
               </select>
+              {/* Timezone toggle */}
+              <div className="flex items-center bg-slate-100 rounded-xl border border-slate-200 p-0.5">
+                <button
+                  onClick={() => setTimezone("Asia/Dubai")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    timezone === "Asia/Dubai"
+                      ? "bg-white text-violet-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  🇦🇪 Dubai
+                </button>
+                <button
+                  onClick={() => setTimezone("Asia/Kolkata")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    timezone === "Asia/Kolkata"
+                      ? "bg-white text-violet-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  🇮🇳 India
+                </button>
+              </div>
               <button
                 onClick={() => fetchDetail()}
                 className="px-4 py-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-sm font-medium flex items-center gap-2 transition-all shadow-sm"
@@ -853,6 +931,313 @@ const AdminTracking = () => {
           </div>
         </div>
       </motion.div>
+
+      {/* ── 1b. Device Toggle Bar ──────────────────────────────────────── */}
+      {devices && devices.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+        >
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Monitor className="w-4 h-4 text-violet-500" />
+              <h3 className="text-sm font-semibold text-slate-700">Devices</h3>
+              <span className="text-xs text-slate-400 ml-1">
+                ({devices.length} detected)
+              </span>
+              {selectedDevice && (
+                <button
+                  onClick={() => {
+                    setSelectedDevice(null);
+                    setPage(1);
+                  }}
+                  className="ml-auto text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1 transition-colors"
+                >
+                  <X className="w-3 h-3" /> Clear Filter
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {/* All Devices pill */}
+              <button
+                onClick={() => {
+                  setSelectedDevice(null);
+                  setPage(1);
+                }}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
+                  !selectedDevice
+                    ? "bg-violet-500 text-white border-violet-500 shadow-sm shadow-violet-200"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5" />
+                All Devices
+                <span
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                    !selectedDevice
+                      ? "bg-white/20 text-white"
+                      : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {devices.reduce((s, d) => s + d.totalActivities, 0)}
+                </span>
+              </button>
+
+              {/* Individual device pills */}
+              {devices.map((d) => {
+                const isActive = selectedDevice === d.deviceId;
+                const DeviceIcon =
+                  d.deviceType === "Mobile"
+                    ? Smartphone
+                    : d.deviceType === "Tablet"
+                      ? Tablet
+                      : Monitor;
+                return (
+                  <button
+                    key={d.deviceId}
+                    onClick={() => {
+                      setSelectedDevice(isActive ? null : d.deviceId);
+                      setPage(1);
+                    }}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
+                      isActive
+                        ? "bg-violet-500 text-white border-violet-500 shadow-sm shadow-violet-200"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+                    }`}
+                    title={`${d.deviceLabel || d.deviceId}\nSessions: ${d.sessionCount} · Logins: ${d.logins}\nFirst: ${fmtDate(d.firstSeen)}\nLast: ${fmtDate(d.lastSeen)}\nIPs: ${(d.ips || []).filter(Boolean).join(", ") || "—"}`}
+                  >
+                    <DeviceIcon className="w-3.5 h-3.5" />
+                    <span className="max-w-[180px] truncate">
+                      {d.browser || "Unknown"}
+                      {d.os ? ` · ${d.os}` : ""}
+                    </span>
+                    {d.screenResolution && (
+                      <span
+                        className={`text-[10px] ${isActive ? "text-white/70" : "text-slate-400"}`}
+                      >
+                        {d.screenResolution}
+                      </span>
+                    )}
+                    <span
+                      className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        isActive
+                          ? "bg-white/20 text-white"
+                          : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {d.totalActivities}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Selected device details */}
+            {selectedDevice &&
+              (() => {
+                const dev = devices.find((d) => d.deviceId === selectedDevice);
+                if (!dev) return null;
+                return (
+                  <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 text-xs">
+                    <div className="bg-slate-50 rounded-xl p-2.5">
+                      <div className="text-slate-400 mb-0.5">Browser</div>
+                      <div className="font-semibold text-slate-700">
+                        {dev.browser || "—"}
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-2.5">
+                      <div className="text-slate-400 mb-0.5">OS</div>
+                      <div className="font-semibold text-slate-700">
+                        {dev.os || "—"}
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-2.5">
+                      <div className="text-slate-400 mb-0.5">Type</div>
+                      <div className="font-semibold text-slate-700">
+                        {dev.deviceType || "—"}
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-2.5">
+                      <div className="text-slate-400 mb-0.5">Sessions</div>
+                      <div className="font-semibold text-slate-700">
+                        {dev.sessionCount}
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-2.5">
+                      <div className="text-slate-400 mb-0.5">Last Seen</div>
+                      <div className="font-semibold text-slate-700">
+                        {fmtDate(dev.lastSeen)}
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-2.5">
+                      <div className="text-slate-400 mb-0.5">IPs</div>
+                      <div
+                        className="font-semibold text-slate-700 truncate"
+                        title={(dev.ips || []).filter(Boolean).join(", ")}
+                      >
+                        {(dev.ips || []).filter(Boolean).join(", ") || "—"}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── 1c. Device-wise Stats Comparison ─────────────────────────────── */}
+      {devices && devices.length > 1 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+        >
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <SectionHeader
+              icon={Monitor}
+              title="Device-wise Stats"
+              color="text-blue-500"
+              badge={devices.length}
+            />
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="text-left py-2 px-3 text-slate-500 font-semibold">
+                      Device
+                    </th>
+                    <th className="text-center py-2 px-2 text-slate-500 font-semibold">
+                      Sessions
+                    </th>
+                    <th className="text-center py-2 px-2 text-slate-500 font-semibold">
+                      Events
+                    </th>
+                    <th className="text-center py-2 px-2 text-slate-500 font-semibold">
+                      Logins
+                    </th>
+                    <th className="text-center py-2 px-2 text-slate-500 font-semibold">
+                      Pages
+                    </th>
+                    <th className="text-center py-2 px-2 text-slate-500 font-semibold">
+                      Clicks
+                    </th>
+                    <th className="text-center py-2 px-2 text-slate-500 font-semibold">
+                      Screen Time
+                    </th>
+                    <th className="text-center py-2 px-2 text-slate-500 font-semibold">
+                      IPs
+                    </th>
+                    <th className="text-left py-2 px-2 text-slate-500 font-semibold">
+                      First Seen
+                    </th>
+                    <th className="text-left py-2 px-2 text-slate-500 font-semibold">
+                      Last Seen
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {devices.map((d) => {
+                    const DevIcon =
+                      d.deviceType === "Mobile"
+                        ? Smartphone
+                        : d.deviceType === "Tablet"
+                          ? Tablet
+                          : Monitor;
+                    const isSelected = selectedDevice === d.deviceId;
+                    return (
+                      <tr
+                        key={d.deviceId}
+                        onClick={() => {
+                          setSelectedDevice(isSelected ? null : d.deviceId);
+                          setPage(1);
+                        }}
+                        className={`border-b border-slate-50 cursor-pointer transition-all ${
+                          isSelected
+                            ? "bg-violet-50 border-violet-200"
+                            : "hover:bg-slate-50"
+                        }`}
+                      >
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                                isSelected
+                                  ? "bg-violet-500 text-white"
+                                  : "bg-blue-100 text-blue-600"
+                              }`}
+                            >
+                              <DevIcon className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-700">
+                                {d.browser || "Unknown"}
+                              </p>
+                              <p className="text-[10px] text-slate-400">
+                                {d.os || "Unknown OS"}
+                                {d.screenResolution
+                                  ? ` · ${d.screenResolution}`
+                                  : ""}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="text-center py-2.5 px-2">
+                          <span className="inline-block bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">
+                            {d.sessionCount}
+                          </span>
+                        </td>
+                        <td className="text-center py-2.5 px-2 font-semibold text-slate-700">
+                          {d.totalActivities}
+                        </td>
+                        <td className="text-center py-2.5 px-2">
+                          <span className="inline-block bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">
+                            {d.logins || 0}
+                          </span>
+                        </td>
+                        <td className="text-center py-2.5 px-2 font-semibold text-slate-600">
+                          {d.pageViews || "—"}
+                        </td>
+                        <td className="text-center py-2.5 px-2 font-semibold text-slate-600">
+                          {d.clicks || "—"}
+                        </td>
+                        <td className="text-center py-2.5 px-2">
+                          <span className="font-semibold text-violet-600">
+                            {d.totalDuration
+                              ? fmt(Math.round(d.totalDuration / 1000))
+                              : "—"}
+                          </span>
+                        </td>
+                        <td className="text-center py-2.5 px-2">
+                          <div className="flex flex-wrap gap-1 justify-center">
+                            {(d.ips || []).filter(Boolean).map((ip, idx) => (
+                              <span
+                                key={idx}
+                                className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-mono"
+                              >
+                                {ip}
+                              </span>
+                            ))}
+                            {!(d.ips || []).filter(Boolean).length && (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-2 text-slate-500 whitespace-nowrap">
+                          {fmtDate(d.firstSeen)}
+                        </td>
+                        <td className="py-2.5 px-2 text-slate-500 whitespace-nowrap">
+                          {fmtDate(d.lastSeen)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* ── 2. Stats Row ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
@@ -1239,7 +1624,10 @@ const AdminTracking = () => {
                               )}
                             </div>
                             <span className="text-xs text-slate-400 whitespace-nowrap">
-                              {new Date(click.timestamp).toLocaleTimeString("en-IN", { timeZone: "Asia/Dubai" })}
+                              {new Date(click.timestamp).toLocaleTimeString(
+                                "en-IN",
+                                { timeZone: timezone },
+                              )}
                             </span>
                           </div>
                         ))}
@@ -1249,10 +1637,16 @@ const AdminTracking = () => {
 
                   <div className="mt-3 pt-3 border-t border-blue-100 flex items-center justify-between text-xs text-slate-400">
                     <span>
-                      First visit: {new Date(pg.firstVisit).toLocaleString("en-IN", { timeZone: "Asia/Dubai" })}
+                      First visit:{" "}
+                      {new Date(pg.firstVisit).toLocaleString("en-IN", {
+                        timeZone: timezone,
+                      })}
                     </span>
                     <span>
-                      Last visit: {new Date(pg.lastVisit).toLocaleString("en-IN", { timeZone: "Asia/Dubai" })}
+                      Last visit:{" "}
+                      {new Date(pg.lastVisit).toLocaleString("en-IN", {
+                        timeZone: timezone,
+                      })}
                     </span>
                   </div>
                 </div>
@@ -1504,6 +1898,46 @@ const AdminTracking = () => {
                             </span>
                           )}
                         </div>
+                        {/* Device & Location info for this session */}
+                        {s.device && (
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 text-[11px] font-semibold rounded-lg border border-blue-200">
+                              {s.device.isMobile ||
+                              s.device.deviceType === "Mobile" ? (
+                                <Smartphone className="w-3 h-3" />
+                              ) : s.device.deviceType === "Tablet" ? (
+                                <Tablet className="w-3 h-3" />
+                              ) : (
+                                <Monitor className="w-3 h-3" />
+                              )}
+                              {s.device.browser || "Unknown Browser"}
+                              {s.device.os
+                                ? ` · ${s.device.os}`
+                                : s.device.platform
+                                  ? ` · ${s.device.platform}`
+                                  : ""}
+                            </span>
+                            {s.device.screenResolution && (
+                              <span className="text-[10px] text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-lg">
+                                {s.device.screenResolution}
+                              </span>
+                            )}
+                            {s.location?.ip && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-lg">
+                                <Globe className="w-2.5 h-2.5" />
+                                {s.location.ip}
+                              </span>
+                            )}
+                            {(s.location?.city || s.location?.country) && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-lg">
+                                <MapPin className="w-2.5 h-2.5 text-orange-400" />
+                                {[s.location.city, s.location.country]
+                                  .filter(Boolean)
+                                  .join(", ")}
+                              </span>
+                            )}
+                          </div>
+                        )}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                           <div className="bg-indigo-50 rounded-xl p-2.5 border border-indigo-100">
                             <span className="text-indigo-400 block text-[10px] uppercase tracking-wide font-medium">

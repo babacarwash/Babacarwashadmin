@@ -62,20 +62,48 @@ class AdminActivityTracker {
   /* ── Device info ── */
   _getDevice() {
     const ua = navigator.userAgent;
+
+    // Browser detection
     let browser = "Unknown";
-    if (ua.includes("Chrome") && !ua.includes("Edg")) browser = "Chrome";
+    if (ua.includes("Edg")) browser = "Edge";
+    else if (ua.includes("OPR") || ua.includes("Opera")) browser = "Opera";
+    else if (ua.includes("Chrome")) browser = "Chrome";
     else if (ua.includes("Firefox")) browser = "Firefox";
-    else if (ua.includes("Safari") && !ua.includes("Chrome"))
-      browser = "Safari";
-    else if (ua.includes("Edg")) browser = "Edge";
+    else if (ua.includes("Safari")) browser = "Safari";
+
+    // OS detection
+    let os = "Unknown";
+    if (ua.includes("Windows NT 10")) os = "Windows 10/11";
+    else if (ua.includes("Windows")) os = "Windows";
+    else if (ua.includes("Mac OS X")) os = "macOS";
+    else if (ua.includes("Android")) os = "Android";
+    else if (ua.includes("iPhone") || ua.includes("iPad")) os = "iOS";
+    else if (ua.includes("Linux")) os = "Linux";
+
+    // Device type
+    const isMobile = /Mobi|Android/i.test(ua);
+    const isTablet = /iPad|Android(?!.*Mobi)/i.test(ua);
+    const deviceType = isTablet ? "Tablet" : isMobile ? "Mobile" : "Desktop";
+
+    // Stable device fingerprint (same device always gets same ID)
+    const fingerprint = `${browser}_${os}_${deviceType}_${window.screen.width}x${window.screen.height}`;
+    const deviceId = btoa(fingerprint)
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .slice(0, 16);
 
     return {
+      deviceId,
       userAgent: ua,
       platform: navigator.platform,
-      isMobile: /Mobi|Android/i.test(ua),
+      os,
+      browser,
+      deviceType,
+      isMobile,
       screenWidth: window.screen.width,
       screenHeight: window.screen.height,
-      browser,
+      screenResolution: `${window.screen.width}x${window.screen.height}`,
+      language: navigator.language || "en",
+      deviceLabel: `${browser} on ${os} (${deviceType} ${window.screen.width}x${window.screen.height})`,
     };
   }
 

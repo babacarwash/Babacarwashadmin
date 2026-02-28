@@ -1278,7 +1278,10 @@ const CustomerActivityDetail = () => {
                               )}
                             </div>
                             <span className="text-xs text-slate-400 whitespace-nowrap">
-                              {new Date(click.timestamp).toLocaleTimeString("en-IN", { timeZone: "Asia/Dubai" })}
+                              {new Date(click.timestamp).toLocaleTimeString(
+                                "en-IN",
+                                { timeZone: "Asia/Dubai" },
+                              )}
                             </span>
                           </div>
                         ))}
@@ -1288,10 +1291,16 @@ const CustomerActivityDetail = () => {
 
                   <div className="mt-3 pt-3 border-t border-blue-100 flex items-center justify-between text-xs text-slate-400">
                     <span>
-                      First visit: {new Date(pg.firstVisit).toLocaleString("en-IN", { timeZone: "Asia/Dubai" })}
+                      First visit:{" "}
+                      {new Date(pg.firstVisit).toLocaleString("en-IN", {
+                        timeZone: "Asia/Dubai",
+                      })}
                     </span>
                     <span>
-                      Last visit: {new Date(pg.lastVisit).toLocaleString("en-IN", { timeZone: "Asia/Dubai" })}
+                      Last visit:{" "}
+                      {new Date(pg.lastVisit).toLocaleString("en-IN", {
+                        timeZone: "Asia/Dubai",
+                      })}
                     </span>
                   </div>
                 </div>
