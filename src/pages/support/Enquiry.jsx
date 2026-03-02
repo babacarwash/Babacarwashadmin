@@ -63,7 +63,7 @@ const Enquiry = () => {
 
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
   });
 
   // For Delete Modal
@@ -214,18 +214,6 @@ const Enquiry = () => {
 
   // --- Columns with Rich CSS ---
   const columns = [
-    {
-      header: "#",
-      accessor: "id",
-      className: "w-16 text-center",
-      render: (row, idx) => (
-        <div className="flex justify-center">
-          <span className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs font-mono border border-indigo-100">
-            {(currentPage - 1) * pagination.limit + idx + 1}
-          </span>
-        </div>
-      ),
-    },
     {
       header: "Date & Time",
       accessor: "createdAt",

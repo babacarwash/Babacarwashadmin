@@ -60,7 +60,7 @@ const Staff = () => {
 
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
     total: 0,
     totalPages: 1,
   });
@@ -127,7 +127,7 @@ const Staff = () => {
   };
 
   // --- FETCH DATA ---
-  const fetchData = async (page = 1, limit = 50, search = "") => {
+  const fetchData = async (page = 1, limit = 100, search = "") => {
     setLoading(true);
     try {
       const res = await staffService.list(page, limit, search);

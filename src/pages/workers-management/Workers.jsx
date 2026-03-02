@@ -77,7 +77,7 @@ const Workers = () => {
 
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
     total: 0,
     totalPages: 1,
   });
@@ -115,7 +115,7 @@ const Workers = () => {
   // --- FETCH DATA ---
   const fetchData = async (
     page = 1,
-    limit = 50,
+    limit = 100,
     search = "",
     status = undefined,
   ) => {

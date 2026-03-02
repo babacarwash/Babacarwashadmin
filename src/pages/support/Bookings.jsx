@@ -39,7 +39,7 @@ const Bookings = () => {
   const [currentSearch, setCurrentSearch] = useState("");
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
   });
 
   // Fetch data on mount and when pagination changes
@@ -149,16 +149,6 @@ const Bookings = () => {
 
   // --- Columns ---
   const columns = [
-    {
-      header: "#",
-      accessor: "id",
-      className: "w-12 text-center",
-      render: (row, idx) => (
-        <span className="text-slate-500 font-mono text-xs">
-          {(currentPage - 1) * pagination.limit + idx + 1}
-        </span>
-      ),
-    },
     {
       header: "Customer",
       accessor: "customer",

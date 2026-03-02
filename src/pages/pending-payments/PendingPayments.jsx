@@ -41,7 +41,7 @@ const PendingPayments = () => {
 
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
     total: 0,
     totalPages: 1,
   });
@@ -96,7 +96,7 @@ const PendingPayments = () => {
     return { startDate: start, endDate: end };
   };
 
-  const fetchData = async (page = 1, limit = 50) => {
+  const fetchData = async (page = 1, limit = 100) => {
     setLoading(true);
     try {
       const { startDate, endDate } = getDateRangeParams();
@@ -545,12 +545,6 @@ const PendingPayments = () => {
   }, [workers, filters.building]);
 
   const columns = [
-    {
-      header: "SL NO",
-      accessor: "id",
-      className: "w-16 text-center text-xs font-bold text-slate-500",
-      render: (_, idx) => (pagination.page - 1) * pagination.limit + idx + 1,
-    },
     {
       header: "PARKING",
       accessor: "vehicle.parking_no",

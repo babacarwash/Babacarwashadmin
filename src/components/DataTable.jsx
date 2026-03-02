@@ -26,7 +26,7 @@ const DataTable = ({
   const isServer = !!(pagination && onPageChange);
 
   const [localPage, setLocalPage] = useState(1);
-  const [localLimit, setLocalLimit] = useState(50);
+  const [localLimit, setLocalLimit] = useState(100);
   const [localSearch, setLocalSearch] = useState("");
   const [expandedRow, setExpandedRow] = useState(null); // Changed from array to single value
 
@@ -150,6 +150,9 @@ const DataTable = ({
             <table className="min-w-full whitespace-nowrap text-left border-collapse">
               <thead className="sticky top-0 bg-slate-50 border-b z-10 shadow-sm">
                 <tr>
+                  <th className="px-3 py-3 text-xs font-bold uppercase text-slate-600 tracking-wider bg-slate-50 w-12 text-center">
+                    #
+                  </th>
                   {columns.map((c, i) => (
                     <th
                       key={i}
@@ -171,7 +174,7 @@ const DataTable = ({
                 {!loading && rows.length === 0 && (
                   <tr>
                     <td
-                      colSpan={columns.length + (renderExpandedRow ? 1 : 0)}
+                      colSpan={columns.length + 1 + (renderExpandedRow ? 1 : 0)}
                       className="py-20 text-center text-slate-400"
                     >
                       <Inbox className="w-16 h-16 md:w-10 md:h-10 mx-auto mb-4 opacity-20" />
@@ -193,6 +196,9 @@ const DataTable = ({
                           expanded ? "bg-slate-50" : ""
                         }`}
                       >
+                        <td className="px-3 py-3 text-sm font-semibold text-slate-500 text-center w-12">
+                          {(page - 1) * limit + i + 1}
+                        </td>
                         {columns.map((c, j) => (
                           <td
                             key={j}
@@ -228,7 +234,7 @@ const DataTable = ({
                       {expanded && renderExpandedRow && (
                         <tr>
                           <td
-                            colSpan={columns.length + 1}
+                            colSpan={columns.length + 2}
                             className="p-0 border-b-0"
                           >
                             <motion.div

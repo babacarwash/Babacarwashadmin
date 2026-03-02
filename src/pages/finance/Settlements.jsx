@@ -32,7 +32,7 @@ const Settlements = () => {
     const savedCurrency = localStorage.getItem("app_currency");
     if (savedCurrency) setCurrency(savedCurrency);
 
-    dispatch(fetchSettlements({ page: 1, limit: 50 }));
+    dispatch(fetchSettlements({ page: 1, limit: 100 }));
   }, [dispatch]);
 
   // --- 2. Search Logic (Client-Side) ---
@@ -68,7 +68,7 @@ const Settlements = () => {
       toast.success("Settlement Approved!");
       setShowApproveModal(false);
       dispatch(clearSelectedSettlement());
-      dispatch(fetchSettlements({ page: currentPage, limit: 50 }));
+      dispatch(fetchSettlements({ page: currentPage, limit: 100 }));
     } catch (error) {
       console.error(error);
       toast.error("Failed to approve settlement");
@@ -76,23 +76,11 @@ const Settlements = () => {
   };
 
   const handlePageChange = (page) => {
-    dispatch(fetchSettlements({ page, limit: 50 }));
+    dispatch(fetchSettlements({ page, limit: 100 }));
   };
 
   // --- TABLE COLUMNS ---
   const columns = [
-    {
-      key: "index",
-      header: "#",
-      className: "w-16 text-center",
-      render: (row, index) => (
-        <div className="flex justify-center">
-          <span className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs font-mono border border-slate-200">
-            {(currentPage - 1) * 50 + index + 1}
-          </span>
-        </div>
-      ),
-    },
     {
       key: "date",
       header: "Date",
@@ -230,7 +218,7 @@ const Settlements = () => {
           loading={loading}
           pagination={{
             page: currentPage,
-            limit: 50,
+            limit: 100,
             total: total,
           }}
           onPageChange={handlePageChange}

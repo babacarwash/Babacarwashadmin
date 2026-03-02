@@ -34,7 +34,7 @@ const Buildings = () => {
   // -- Pagination --
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
     total: 0,
     totalPages: 1,
   });
@@ -51,7 +51,7 @@ const Buildings = () => {
   }, []);
 
   // --- Fetch Data ---
-  const fetchData = async (page = 1, limit = 50, search = "") => {
+  const fetchData = async (page = 1, limit = 100, search = "") => {
     setLoading(true);
     setCurrentSearch(search);
 
@@ -66,7 +66,7 @@ const Buildings = () => {
         // 2. Filter Locally
         const allItems = response.data || [];
         resultData = allItems.filter((item) =>
-          item.name.toLowerCase().includes(search.toLowerCase())
+          item.name.toLowerCase().includes(search.toLowerCase()),
         );
 
         totalRecords = resultData.length;
@@ -139,18 +139,6 @@ const Buildings = () => {
 
   // --- Columns ---
   const columns = [
-    {
-      header: "#",
-      accessor: "id",
-      className: "w-16 text-center",
-      render: (row, idx) => (
-        <div className="flex justify-center">
-          <span className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs font-mono border border-slate-200">
-            {(pagination.page - 1) * pagination.limit + idx + 1}
-          </span>
-        </div>
-      ),
-    },
     {
       header: "Building Name",
       accessor: "name",

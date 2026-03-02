@@ -41,13 +41,13 @@ const CustomerHistory = () => {
 
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50, // <--- Default to 50 as requested
+    limit: 100,
     total: 0,
     totalPages: 1,
   });
 
   // <--- Logic preserved: Default limit to 50
-  const fetchData = async (page = 1, limit = 50) => {
+  const fetchData = async (page = 1, limit = 100) => {
     setLoading(true);
     try {
       console.log("🔄 Fetching customer history:", {

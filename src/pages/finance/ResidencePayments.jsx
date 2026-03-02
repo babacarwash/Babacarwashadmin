@@ -125,7 +125,7 @@ const ResidencePayments = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
     total: 0,
     totalPages: 1,
   });
@@ -190,14 +190,14 @@ const ResidencePayments = () => {
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      const limit = searchTerm ? 3000 : 50;
+      const limit = searchTerm ? 3000 : 100;
       fetchData(1, limit);
     }, 500);
     return () => clearTimeout(delayDebounceFn);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
-  const fetchData = async (page = 1, limit = 50) => {
+  const fetchData = async (page = 1, limit = 100) => {
     try {
       const isSearching = searchTerm.trim().length > 0;
       const fetchLimit = isSearching ? 3000 : limit;

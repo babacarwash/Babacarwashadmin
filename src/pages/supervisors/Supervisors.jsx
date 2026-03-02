@@ -40,7 +40,7 @@ const Supervisors = () => {
   const [currentSearch, setCurrentSearch] = useState("");
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
   });
 
   // Fetch data
@@ -50,7 +50,7 @@ const Supervisors = () => {
         page: pagination.page,
         limit: pagination.limit,
         search: currentSearch,
-      })
+      }),
     );
   }, [dispatch, pagination.page, pagination.limit, currentSearch]);
 
@@ -111,24 +111,12 @@ const Supervisors = () => {
         page: pagination.page,
         limit: pagination.limit,
         search: currentSearch,
-      })
+      }),
     );
   };
 
   // --- Columns Configuration ---
   const columns = [
-    {
-      header: "#",
-      accessor: "id",
-      className: "w-16 text-center",
-      render: (row, idx) => (
-        <div className="flex justify-center">
-          <span className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs font-mono border border-indigo-100">
-            {row.id || (pagination.page - 1) * pagination.limit + idx + 1}
-          </span>
-        </div>
-      ),
-    },
     {
       header: "Service Type",
       accessor: "role",

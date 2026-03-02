@@ -79,7 +79,7 @@
 
 //   const [pagination, setPagination] = useState({
 //     page: 1,
-//     limit: 50,
+//     limit: 100,
 //     total: 0,
 //     totalPages: 1,
 //   });
@@ -111,7 +111,7 @@
 //   }, []);
 
 //   // --- Fetch Data ---
-//   const fetchData = async (page = 1, limit = 50) => {
+//   const fetchData = async (page = 1, limit = 100) => {
 //     setLoading(true);
 //     try {
 //       const apiFilters = { ...filters };

@@ -94,7 +94,7 @@ const Customers = () => {
 
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
     total: 0,
     totalPages: 1,
   });
@@ -198,7 +198,7 @@ const Customers = () => {
   // --- Fetch Data ---
   const fetchData = async (
     page = 1,
-    limit = 50,
+    limit = 100,
     search = "",
     status = 1,
     worker = "",
@@ -991,18 +991,6 @@ const Customers = () => {
   };
 
   const columns = [
-    {
-      header: "#",
-      accessor: "uniqueId",
-      className: "w-16 text-center",
-      render: (row, idx) => (
-        <div className="flex items-center justify-center">
-          <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-50 to-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs border border-slate-200">
-            {(pagination.page - 1) * pagination.limit + idx + 1}
-          </span>
-        </div>
-      ),
-    },
     // ✅ COMBINED COLUMN (Name Top, Mobile Bottom)
     {
       header: "Customer",

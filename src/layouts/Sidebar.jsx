@@ -229,17 +229,19 @@ const Sidebar = ({ isOpen, isMobile, onClose }) => {
                   Finance
                 </li>
 
+                {user.service_type !== "mall" && (
+                  <NavItem
+                    to="/work-records"
+                    icon={FileText}
+                    label="Work Records"
+                    onClick={handleLinkClick}
+                    isMobile={isMobile}
+                  />
+                )}
                 <NavItem
-                  to="/work-records"
-                  icon={FileText}
-                  label="Work Records"
-                  onClick={handleLinkClick}
-                  isMobile={isMobile}
-                />
-                <NavItem
-                  to="/collection-sheet"
-                  icon={Receipt}
-                  label="Collection Sheet"
+                  to="/supervisor/yearly-records"
+                  icon={BarChart2}
+                  label="Yearly Work Records"
                   onClick={handleLinkClick}
                   isMobile={isMobile}
                 />

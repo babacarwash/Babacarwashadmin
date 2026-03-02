@@ -40,6 +40,12 @@ const OneWash = () => {
     cash: 0,
     card: 0,
     bank: 0,
+    outsideCount: 0,
+    insideOutsideCount: 0,
+    residenceCount: 0,
+    outsideAmount: 0,
+    insideOutsideAmount: 0,
+    residenceAmount: 0,
   });
 
   const [workers, setWorkers] = useState([]);
@@ -72,7 +78,7 @@ const OneWash = () => {
 
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
     total: 0,
     totalPages: 1,
   });
@@ -110,7 +116,7 @@ const OneWash = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
-  const fetchData = async (page = 1, limit = 50) => {
+  const fetchData = async (page = 1, limit = 100) => {
     // ✅ FIX: Prevent fetching if dates are missing/invalid
     if (!filters.startDate || !filters.endDate) return;
 
@@ -345,12 +351,6 @@ const OneWash = () => {
   // --- COLUMNS ---
   const columns = [
     {
-      header: "Id",
-      accessor: "id",
-      className: "w-16 text-center text-slate-500",
-      render: (row) => <span>{row.id}</span>,
-    },
-    {
       header: "Date",
       accessor: "createdAt",
       render: (row) => (
@@ -555,6 +555,34 @@ const OneWash = () => {
               </span>
             </div>
           </div> */}
+          <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-600 mt-1">
+            <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
+              <Briefcase className="w-3.5 h-3.5 text-indigo-500" />
+              <span>
+                Total: <b className="text-slate-800">{stats.totalJobs}</b>
+              </span>
+            </div>
+            <div className="bg-white px-3 py-1.5 rounded-lg border border-blue-200 shadow-sm flex items-center gap-2">
+              <Car className="w-3.5 h-3.5 text-blue-500" />
+              <span>
+                Outside: <b className="text-blue-700">{stats.outsideCount}</b>
+              </span>
+            </div>
+            <div className="bg-white px-3 py-1.5 rounded-lg border border-purple-200 shadow-sm flex items-center gap-2">
+              <Car className="w-3.5 h-3.5 text-purple-500" />
+              <span>
+                Inside + Outside:{" "}
+                <b className="text-purple-700">{stats.insideOutsideCount}</b>
+              </span>
+            </div>
+            <div className="bg-white px-3 py-1.5 rounded-lg border border-green-200 shadow-sm flex items-center gap-2">
+              <MapPin className="w-3.5 h-3.5 text-green-500" />
+              <span>
+                Residence:{" "}
+                <b className="text-green-700">{stats.residenceCount}</b>
+              </span>
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">

@@ -30,7 +30,7 @@ const SupervisorWorkers = () => {
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(100);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [serviceTypeFilter, setServiceTypeFilter] = useState("");
@@ -51,7 +51,7 @@ const SupervisorWorkers = () => {
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
-  const [historyLimit, setHistoryLimit] = useState(10);
+  const [historyLimit, setHistoryLimit] = useState(100);
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historySearch, setHistorySearch] = useState("");
   const [historyCustomerFilter, setHistoryCustomerFilter] = useState("");
@@ -328,34 +328,7 @@ const SupervisorWorkers = () => {
         );
       },
     },
-    {
-      header: "Assigned To",
-      accessor: "buildings",
-      render: (row) => (
-        <div className="space-y-1">
-          {row.buildings?.length > 0 && (
-            <div className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
-              <Building2 className="w-3.5 h-3.5 text-blue-500" />
-              <span>
-                {row.buildings.length} Building
-                {row.buildings.length !== 1 ? "s" : ""}
-              </span>
-            </div>
-          )}
-          {row.malls?.length > 0 && (
-            <div className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400">
-              <Store className="w-3.5 h-3.5 text-purple-500" />
-              <span>
-                {row.malls.length} Mall{row.malls.length !== 1 ? "s" : ""}
-              </span>
-            </div>
-          )}
-          {!row.buildings?.length && !row.malls?.length && (
-            <span className="text-xs text-slate-400">Not assigned</span>
-          )}
-        </div>
-      ),
-    },
+
     {
       header: "Status",
       accessor: "status",
@@ -584,7 +557,7 @@ const SupervisorWorkers = () => {
       </div>
 
       {/* Statistics Cards — uses stats from API (all workers) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <StatCard
           title="Total Workers"
           value={stats.total}
@@ -603,61 +576,6 @@ const SupervisorWorkers = () => {
           icon={XCircle}
           color="red"
         />
-        <StatCard
-          title="Residence"
-          value={stats.residence}
-          icon={Building2}
-          color="purple"
-        />
-        <StatCard title="Mall" value={stats.mall} icon={Store} color="orange" />
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-lg">
-        <div className="flex flex-wrap gap-4">
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
-            className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none"
-          >
-            <option value="">All Status</option>
-            <option value="1">Active Only</option>
-            <option value="2">Inactive Only</option>
-          </select>
-
-          <select
-            value={serviceTypeFilter}
-            onChange={(e) => {
-              setServiceTypeFilter(e.target.value);
-              setPage(1);
-            }}
-            className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none"
-          >
-            <option value="">All Service Types</option>
-            <option value="residence">Residence</option>
-            <option value="mall">Mall</option>
-            <option value="site">Site</option>
-            <option value="mobile">Mobile</option>
-            <option value="driver">Driver</option>
-          </select>
-
-          {(statusFilter || serviceTypeFilter) && (
-            <button
-              onClick={() => {
-                setStatusFilter("");
-                setServiceTypeFilter("");
-                setPage(1);
-              }}
-              className="px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-colors flex items-center gap-1"
-            >
-              <X className="w-4 h-4" />
-              Clear Filters
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Data Table */}

@@ -39,6 +39,12 @@ const SupervisorOnewash = () => {
     cash: 0,
     card: 0,
     bank: 0,
+    outsideCount: 0,
+    insideOutsideCount: 0,
+    residenceCount: 0,
+    outsideAmount: 0,
+    insideOutsideAmount: 0,
+    residenceAmount: 0,
   });
 
   const [workers, setWorkers] = useState([]);
@@ -61,9 +67,8 @@ const SupervisorOnewash = () => {
   };
 
   const [filters, setFilters] = useState({
-    startDate: getFirstOfMonth(),
+    startDate: getToday(),
     endDate: getToday(),
-    service_type: "",
     worker: "",
   });
 
@@ -71,7 +76,7 @@ const SupervisorOnewash = () => {
 
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
     total: 0,
     totalPages: 1,
   });
@@ -113,7 +118,7 @@ const SupervisorOnewash = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
-  const fetchData = async (page = 1, limit = 50) => {
+  const fetchData = async (page = 1, limit = 100) => {
     if (!filters.startDate || !filters.endDate) return;
 
     setLoading(true);
@@ -293,7 +298,7 @@ const SupervisorOnewash = () => {
     if (field === "clear") {
       setFilters((prev) => ({
         ...prev,
-        startDate: getFirstOfMonth(),
+        startDate: getToday(),
         endDate: getToday(),
       }));
     } else {
@@ -332,12 +337,6 @@ const SupervisorOnewash = () => {
 
   // --- COLUMNS (matching the screenshot exactly) ---
   const columns = [
-    {
-      header: "Id",
-      accessor: "id",
-      className: "w-16 text-center text-slate-500",
-      render: (row) => <span>{row.id}</span>,
-    },
     {
       header: "Date",
       accessor: "createdAt",
@@ -531,6 +530,26 @@ const SupervisorOnewash = () => {
                 Tips: <b className="text-amber-600">{stats.tips || 0}</b>
               </span>
             </div>
+            <div className="bg-white px-3 py-1.5 rounded-lg border border-blue-200 shadow-sm flex items-center gap-2">
+              <Car className="w-3.5 h-3.5 text-blue-500" />
+              <span>
+                Outside: <b className="text-blue-700">{stats.outsideCount}</b>
+              </span>
+            </div>
+            <div className="bg-white px-3 py-1.5 rounded-lg border border-purple-200 shadow-sm flex items-center gap-2">
+              <Car className="w-3.5 h-3.5 text-purple-500" />
+              <span>
+                Inside + Outside:{" "}
+                <b className="text-purple-700">{stats.insideOutsideCount}</b>
+              </span>
+            </div>
+            <div className="bg-white px-3 py-1.5 rounded-lg border border-green-200 shadow-sm flex items-center gap-2">
+              <MapPin className="w-3.5 h-3.5 text-green-500" />
+              <span>
+                Residence:{" "}
+                <b className="text-green-700">{stats.residenceCount}</b>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -565,30 +584,16 @@ const SupervisorOnewash = () => {
             />
           </div>
 
-          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-            <div>
-              <CustomDropdown
-                label="Service Type"
-                value={filters.service_type}
-                onChange={(val) =>
-                  setFilters({ ...filters, service_type: val })
-                }
-                options={serviceTypeOptions}
-                icon={Filter}
-                placeholder="All Services"
-              />
-            </div>
-            <div>
-              <CustomDropdown
-                label="Worker"
-                value={filters.worker}
-                onChange={(val) => setFilters({ ...filters, worker: val })}
-                options={workerOptions}
-                icon={User}
-                placeholder="All Workers"
-                searchable={true}
-              />
-            </div>
+          <div className="flex-1 w-full max-w-xs">
+            <CustomDropdown
+              label="Worker"
+              value={filters.worker}
+              onChange={(val) => setFilters({ ...filters, worker: val })}
+              options={workerOptions}
+              icon={User}
+              placeholder="All Workers"
+              searchable={true}
+            />
           </div>
 
           <div className="flex-1 w-full">

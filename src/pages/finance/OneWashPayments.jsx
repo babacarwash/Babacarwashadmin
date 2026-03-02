@@ -103,7 +103,7 @@ const OneWashPayments = () => {
 
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
     total: 0,
     totalPages: 1,
   });
@@ -134,7 +134,7 @@ const OneWashPayments = () => {
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       // Fetch larger set if searching to allow client-side filtering
-      const limit = searchTerm ? 3000 : 50;
+      const limit = searchTerm ? 3000 : 100;
       fetchData(1, limit);
     }, 500); // Instant search debounce
     return () => clearTimeout(delayDebounceFn);
@@ -156,7 +156,7 @@ const OneWashPayments = () => {
     }
   }, [searchTerm]);
 
-  const fetchData = async (page = 1, limit = 50) => {
+  const fetchData = async (page = 1, limit = 100) => {
     try {
       const apiFilters = { ...filters };
       const isSearching = searchTerm.trim().length > 0;
@@ -334,16 +334,6 @@ const OneWashPayments = () => {
   }, [workers]);
 
   const columns = [
-    {
-      header: "Id",
-      accessor: "id",
-      className: "w-16 text-center",
-      render: (row, idx) => (
-        <span className="text-slate-400 font-mono text-xs">
-          {(pagination.page - 1) * pagination.limit + idx + 1}
-        </span>
-      ),
-    },
     {
       header: "Date",
       accessor: "createdAt",
@@ -663,6 +653,69 @@ const OneWashPayments = () => {
               <span className="text-xl font-bold text-amber-600">
                 {stats.tips || 0}
               </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Wash Type Breakdown */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+          <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+              <Car className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="block text-[10px] font-bold text-blue-400 uppercase tracking-wider">
+                Outside
+              </span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-bold text-blue-700">
+                  {stats.outsideAmount || 0}{" "}
+                  <span className="text-[10px] text-blue-400">{currency}</span>
+                </span>
+                <span className="text-[10px] font-bold text-blue-500">
+                  ({stats.outsideCount || 0} jobs)
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="p-3 rounded-xl bg-purple-50 border border-purple-100 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 shrink-0">
+              <Car className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="block text-[10px] font-bold text-purple-400 uppercase tracking-wider">
+                Inside + Outside
+              </span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-bold text-purple-700">
+                  {stats.insideOutsideAmount || 0}{" "}
+                  <span className="text-[10px] text-purple-400">
+                    {currency}
+                  </span>
+                </span>
+                <span className="text-[10px] font-bold text-purple-500">
+                  ({stats.insideOutsideCount || 0} jobs)
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="p-3 rounded-xl bg-green-50 border border-green-100 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 shrink-0">
+              <MapPin className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="block text-[10px] font-bold text-green-400 uppercase tracking-wider">
+                Residence
+              </span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-bold text-green-700">
+                  {stats.residenceAmount || 0}{" "}
+                  <span className="text-[10px] text-green-400">{currency}</span>
+                </span>
+                <span className="text-[10px] font-bold text-green-500">
+                  ({stats.residenceCount || 0} jobs)
+                </span>
+              </div>
             </div>
           </div>
         </div>

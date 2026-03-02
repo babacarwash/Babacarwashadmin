@@ -44,6 +44,12 @@ const SupervisorOneWashPayments = () => {
     cash: 0,
     card: 0,
     bank: 0,
+    outsideCount: 0,
+    insideOutsideCount: 0,
+    residenceCount: 0,
+    outsideAmount: 0,
+    insideOutsideAmount: 0,
+    residenceAmount: 0,
   });
   const [total, setTotal] = useState(0);
   const [workers, setWorkers] = useState([]);
@@ -99,7 +105,7 @@ const SupervisorOneWashPayments = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
     total: 0,
     totalPages: 1,
   });
@@ -132,7 +138,7 @@ const SupervisorOneWashPayments = () => {
   }, []);
 
   const fetchData = useCallback(
-    async (page = 1, limit = 50) => {
+    async (page = 1, limit = 100) => {
       setLoading(true);
       try {
         const isSearching = searchTerm.trim().length > 0;
@@ -166,7 +172,7 @@ const SupervisorOneWashPayments = () => {
 
   useEffect(() => {
     const delay = setTimeout(() => {
-      const limit = searchTerm ? 3000 : 50;
+      const limit = searchTerm ? 3000 : 100;
       fetchData(1, limit);
     }, 500);
     return () => clearTimeout(delay);
@@ -299,16 +305,6 @@ const SupervisorOneWashPayments = () => {
 
   // --- TABLE COLUMNS ---
   const columns = [
-    {
-      header: "#",
-      accessor: "id",
-      className: "w-12 text-center",
-      render: (row, idx) => (
-        <span className="text-slate-400 font-mono text-xs">
-          {(pagination.page - 1) * pagination.limit + idx + 1}
-        </span>
-      ),
-    },
     {
       header: "Date",
       accessor: "createdAt",
@@ -674,6 +670,79 @@ const SupervisorOneWashPayments = () => {
                 <span className="text-xl font-bold text-amber-600">
                   {stats.tips?.toLocaleString() || 0}
                 </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Wash Type Amount Breakdown */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+          <div className="relative overflow-hidden p-3 rounded-xl bg-blue-50 border border-blue-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                <Car className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold text-blue-400 uppercase tracking-wider">
+                  Outside
+                </span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-lg font-bold text-blue-700">
+                    {stats.outsideAmount?.toLocaleString() || 0}{" "}
+                    <span className="text-[10px] text-blue-400">
+                      {currency}
+                    </span>
+                  </span>
+                  <span className="text-[10px] font-bold text-blue-500">
+                    ({stats.outsideCount || 0} jobs)
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="relative overflow-hidden p-3 rounded-xl bg-purple-50 border border-purple-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 shrink-0">
+                <Car className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold text-purple-400 uppercase tracking-wider">
+                  Inside + Outside
+                </span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-lg font-bold text-purple-700">
+                    {stats.insideOutsideAmount?.toLocaleString() || 0}{" "}
+                    <span className="text-[10px] text-purple-400">
+                      {currency}
+                    </span>
+                  </span>
+                  <span className="text-[10px] font-bold text-purple-500">
+                    ({stats.insideOutsideCount || 0} jobs)
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="relative overflow-hidden p-3 rounded-xl bg-green-50 border border-green-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-600 shrink-0">
+                <MapPin className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold text-green-400 uppercase tracking-wider">
+                  Residence
+                </span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-lg font-bold text-green-700">
+                    {stats.residenceAmount?.toLocaleString() || 0}{" "}
+                    <span className="text-[10px] text-green-400">
+                      {currency}
+                    </span>
+                  </span>
+                  <span className="text-[10px] font-bold text-green-500">
+                    ({stats.residenceCount || 0} jobs)
+                  </span>
+                </div>
               </div>
             </div>
           </div>

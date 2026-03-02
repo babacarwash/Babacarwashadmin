@@ -79,7 +79,7 @@ const Residence = () => {
 
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 100,
     total: 0,
     totalPages: 1,
   });
@@ -161,7 +161,7 @@ const Residence = () => {
     }
   };
 
-  const fetchData = async (page = 1, limit = 50) => {
+  const fetchData = async (page = 1, limit = 100) => {
     if (!filters.startDate || !filters.endDate) return;
 
     const start = new Date(filters.startDate);
@@ -456,18 +456,6 @@ const Residence = () => {
 
   // --- Columns ---
   const columns = [
-    {
-      header: "ID",
-      accessor: "id",
-      className: "w-16 text-center",
-      render: (row, idx) => (
-        <div className="flex justify-center">
-          <span className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs font-mono border border-slate-200">
-            {(pagination.page - 1) * pagination.limit + idx + 1}
-          </span>
-        </div>
-      ),
-    },
     {
       header: "Date",
       accessor: "assignedDate",

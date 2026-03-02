@@ -71,6 +71,7 @@ import SupervisorResidence from "./pages/supervisor/Residence";
 import SupervisorWorkers from "./pages/supervisor/Workers";
 import SupervisorSettlements from "./pages/supervisor/Settlements";
 import SupervisorOneWashPayments from "./pages/supervisor/OneWashPayments";
+import SupervisorYearlyRecords from "./pages/supervisor/YearlyRecords";
 
 // Notifications
 import Notifications from "./pages/notifications/Notifications";
@@ -359,6 +360,12 @@ export const routes = [
     title: "Supervisor One Wash Payments",
     component: <SupervisorOneWashPayments />,
     icon: DollarSign,
+  },
+  {
+    path: "/supervisor/yearly-records",
+    title: "Supervisor Yearly Records",
+    component: <SupervisorYearlyRecords />,
+    icon: BarChart2,
   },
   {
     path: "/supervisor/settlements",

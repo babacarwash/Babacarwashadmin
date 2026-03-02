@@ -91,18 +91,6 @@ const Pricing = () => {
 
   const columns = [
     {
-      header: "#",
-      accessor: "_id",
-      className: "w-16 text-center align-top py-4",
-      render: (row, idx) => (
-        <div className="flex justify-center">
-          <span className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs font-mono border border-slate-200">
-            {(pagination.page - 1) * pagination.limit + idx + 1}
-          </span>
-        </div>
-      ),
-    },
-    {
       header: "Service Details",
       accessor: "service_type",
       className: "w-64 align-top py-4",

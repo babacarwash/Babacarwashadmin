@@ -157,7 +157,7 @@ const SupervisorSettlements = () => {
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(100);
   const [refreshing, setRefreshing] = useState(false);
 
   // Detail modal
@@ -371,18 +371,6 @@ const SupervisorSettlements = () => {
 
   // ─── Table Columns ───
   const columns = [
-    {
-      key: "index",
-      header: "#",
-      className: "w-14 text-center",
-      render: (_, index) => (
-        <div className="flex justify-center">
-          <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-50 to-violet-50 flex items-center justify-center text-indigo-600 font-bold text-xs border border-indigo-100">
-            {(page - 1) * limit + index + 1}
-          </span>
-        </div>
-      ),
-    },
     {
       key: "date",
       header: "Date",
