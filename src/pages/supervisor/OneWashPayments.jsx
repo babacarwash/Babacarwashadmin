@@ -30,6 +30,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import DataTable from "../../components/DataTable";
 import RichDateRangePicker from "../../components/inputs/RichDateRangePicker";
 import CustomDropdown from "../../components/ui/CustomDropdown";
+import ReceiptModal from "../../components/modals/ReceiptModal";
 
 // API
 import { oneWashService } from "../../api/oneWashService";
@@ -99,7 +100,6 @@ const SupervisorOneWashPayments = () => {
     endDate: initialDates.endDate,
     worker: "",
     status: "",
-    service_type: "",
   });
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -275,12 +275,6 @@ const SupervisorOneWashPayments = () => {
     { value: "cancelled", label: "Cancelled" },
   ];
 
-  const serviceTypeOptions = [
-    { value: "", label: "All Services" },
-    { value: "mall", label: "Mall" },
-    { value: "residence", label: "Residence" },
-  ];
-
   const workerOptions = useMemo(() => {
     const opts = [{ value: "", label: "All Workers" }];
     if (workers?.length) {
@@ -372,12 +366,12 @@ const SupervisorOneWashPayments = () => {
       },
     },
     {
-      header: "Amount",
-      accessor: "amount",
+      header: "Original Amount",
+      accessor: "original_amount",
       className: "text-right",
       render: (row) => (
         <span className="font-bold text-emerald-600 text-sm">
-          {row.amount}{" "}
+          {(row.amount - (row.tip_amount || 0)).toFixed(2)}{" "}
           <span className="text-[10px] text-emerald-400">{currency}</span>
         </span>
       ),
@@ -389,6 +383,17 @@ const SupervisorOneWashPayments = () => {
       render: (row) => (
         <span className="text-slate-500 text-sm">
           {row.tip_amount ? `${row.tip_amount}` : "-"}
+        </span>
+      ),
+    },
+    {
+      header: "Total Amount",
+      accessor: "amount",
+      className: "text-right",
+      render: (row) => (
+        <span className="font-bold text-emerald-600 text-sm">
+          {row.amount}{" "}
+          <span className="text-[10px] text-emerald-400">{currency}</span>
         </span>
       ),
     },
@@ -569,7 +574,7 @@ const SupervisorOneWashPayments = () => {
 
         {/* ─── STAT CARDS ─── */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
-          {/* Total Revenue */}
+          {/* Original Amount */}
           <div className="relative overflow-hidden p-4 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white shadow-md">
             <div className="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/5" />
             <div className="flex items-center gap-3">
@@ -578,7 +583,7 @@ const SupervisorOneWashPayments = () => {
               </div>
               <div>
                 <span className="block text-[10px] font-bold opacity-60 uppercase tracking-wider">
-                  Total Revenue
+                  Original Amount
                 </span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-xl font-bold">
@@ -801,16 +806,6 @@ const SupervisorOneWashPayments = () => {
           </div>
           <div className="lg:col-span-2">
             <CustomDropdown
-              label="Service Type"
-              value={filters.service_type}
-              onChange={(val) => setFilters({ ...filters, service_type: val })}
-              options={serviceTypeOptions}
-              icon={Filter}
-              placeholder="All Services"
-            />
-          </div>
-          <div className="lg:col-span-2">
-            <CustomDropdown
               label="Worker"
               value={filters.worker}
               onChange={(val) => setFilters({ ...filters, worker: val })}
@@ -928,10 +923,14 @@ const SupervisorOneWashPayments = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <span className="text-[10px] text-slate-400 block">
-                        Amount
+                        Original Amount
                       </span>
                       <span className="font-bold text-emerald-600 text-lg">
-                        {viewPayment.amount || 0} {currency}
+                        {(
+                          (viewPayment.amount || 0) -
+                          (viewPayment.tip_amount || 0)
+                        ).toFixed(2)}{" "}
+                        {currency}
                       </span>
                     </div>
                     <div>
@@ -940,6 +939,14 @@ const SupervisorOneWashPayments = () => {
                       </span>
                       <span className="font-bold text-slate-700">
                         {viewPayment.tip_amount || 0} {currency}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">
+                        Total Amount
+                      </span>
+                      <span className="font-bold text-emerald-600 text-lg">
+                        {viewPayment.amount || 0} {currency}
                       </span>
                     </div>
                     <div>
@@ -1050,109 +1057,11 @@ const SupervisorOneWashPayments = () => {
       </AnimatePresence>
 
       {/* ─── RECEIPT MODAL ─── */}
-      <AnimatePresence>
-        {selectedReceipt && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setSelectedReceipt(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
-            >
-              <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-4 text-white flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  <h3 className="font-bold">Receipt</h3>
-                </div>
-                <button
-                  onClick={() => setSelectedReceipt(null)}
-                  className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="p-5 space-y-3">
-                <div className="text-center border-b border-dashed border-slate-200 pb-3">
-                  <p className="text-xs text-slate-400">Receipt No</p>
-                  <p className="font-bold text-slate-700">
-                    #{selectedReceipt.receipt_no || selectedReceipt.id}
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    {new Date(selectedReceipt.createdAt).toLocaleString(
-                      "en-GB",
-                    )}
-                  </p>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Vehicle</span>
-                    <span className="font-bold text-slate-700">
-                      {selectedReceipt.vehicle?.registration_no}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Parking</span>
-                    <span className="font-bold text-slate-700">
-                      {selectedReceipt.vehicle?.parking_no}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Worker</span>
-                    <span className="font-bold text-slate-700">
-                      {selectedReceipt.worker?.name || "-"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Payment Mode</span>
-                    <span className="font-bold text-slate-700 uppercase">
-                      {selectedReceipt.payment_mode}
-                    </span>
-                  </div>
-                </div>
-                <div className="border-t border-dashed border-slate-200 pt-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-400">Amount</span>
-                    <span className="font-bold text-emerald-600">
-                      {selectedReceipt.amount_paid} {currency}
-                    </span>
-                  </div>
-                  {selectedReceipt.tip > 0 && (
-                    <div className="flex justify-between text-sm mt-1">
-                      <span className="text-slate-400">Tip</span>
-                      <span className="font-bold text-slate-700">
-                        {selectedReceipt.tip} {currency}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="text-center pt-2">
-                  <span
-                    className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
-                      selectedReceipt.status === "completed"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-amber-100 text-amber-700"
-                    }`}
-                  >
-                    {selectedReceipt.status === "completed" ? (
-                      <CheckCircle2 className="w-3 h-3" />
-                    ) : (
-                      <Clock className="w-3 h-3" />
-                    )}
-                    {(selectedReceipt.status || "").toUpperCase()}
-                  </span>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ReceiptModal
+        isOpen={!!selectedReceipt}
+        onClose={() => setSelectedReceipt(null)}
+        data={selectedReceipt}
+      />
     </div>
   );
 };

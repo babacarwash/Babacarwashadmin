@@ -224,9 +224,10 @@ const SupervisorOnewash = () => {
           "Mall/Building": item.mall?.name || item.building?.name || "-",
           Vehicle: item.registration_no,
           Parking: item.parking_no,
-          Amount: item.amount,
+          "Original Amount": (item.amount - (item.tip_amount || 0)).toFixed(2),
           "Tip Amount":
             item.service_type === "residence" ? "-" : item.tip_amount || 0,
+          "Total Amount": item.amount,
           "Payment Mode": item.payment_mode,
           Status: item.status,
           Worker: item.worker?.name || "Unassigned",
@@ -393,14 +394,14 @@ const SupervisorOnewash = () => {
       },
     },
     {
-      header: "Amount",
-      accessor: "amount",
+      header: "Original Amount",
+      accessor: "original_amount",
       render: (row) => (
         <span className="font-bold text-slate-800 flex items-center gap-1">
           <span className="text-[10px] text-emerald-600 font-extrabold">
             {currency}
           </span>
-          {row.amount}
+          {(row.amount - (row.tip_amount || 0)).toFixed(2)}
         </span>
       ),
     },
@@ -418,6 +419,18 @@ const SupervisorOnewash = () => {
           </span>
         );
       },
+    },
+    {
+      header: "Total Amount",
+      accessor: "amount",
+      render: (row) => (
+        <span className="font-bold text-slate-800 flex items-center gap-1">
+          <span className="text-[10px] text-emerald-600 font-extrabold">
+            {currency}
+          </span>
+          {row.amount}
+        </span>
+      ),
     },
     {
       header: "Payment Mode",
@@ -506,7 +519,7 @@ const SupervisorOnewash = () => {
             <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
               <Coins className="w-3.5 h-3.5 text-emerald-500" />
               <span>
-                Amount:{" "}
+                Original Amount:{" "}
                 <b className="text-emerald-700">
                   {stats.totalAmount} {currency}
                 </b>
@@ -640,6 +653,7 @@ const SupervisorOnewash = () => {
         onClose={() => setIsModalOpen(false)}
         job={selectedJob}
         onSuccess={() => fetchData(pagination.page, pagination.limit)}
+        parentWorkers={workers}
       />
     </div>
   );

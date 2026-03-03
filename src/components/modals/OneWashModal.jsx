@@ -24,7 +24,13 @@ import { pricingService } from "../../api/pricingService";
 // Custom Components
 import CustomDropdown from "../ui/CustomDropdown";
 
-const OneWashModal = ({ isOpen, onClose, job, onSuccess }) => {
+const OneWashModal = ({
+  isOpen,
+  onClose,
+  job,
+  onSuccess,
+  parentWorkers = [],
+}) => {
   const [loading, setLoading] = useState(false);
   const [currency, setCurrency] = useState("AED"); // Default currency
   const [hasWashTypes, setHasWashTypes] = useState(false); // Track if mall has wash_types configured
@@ -57,17 +63,33 @@ const OneWashModal = ({ isOpen, onClose, job, onSuccess }) => {
   useEffect(() => {
     if (isOpen) {
       const fetchData = async () => {
-        try {
-          const [wRes, mRes, bRes] = await Promise.all([
-            workerService.list(1, 1000),
-            mallService.list(1, 1000),
-            buildingService.list(1, 1000),
-          ]);
-          setWorkers(wRes.data || []);
-          setMalls(mRes.data || []);
-          setBuildings(bRes.data || []);
-        } catch (e) {
-          console.error(e);
+        // Fetch each independently so one failure doesn't block the others
+        const [wRes, mRes, bRes] = await Promise.allSettled([
+          workerService.list(1, 1000),
+          mallService.list(1, 1000),
+          buildingService.list(1, 1000),
+        ]);
+
+        if (wRes.status === "fulfilled") {
+          setWorkers(wRes.value?.data || []);
+        } else {
+          console.error("Failed to load workers:", wRes.reason);
+          // Fallback to parent-provided workers if the API call fails
+          if (parentWorkers.length > 0) {
+            setWorkers(parentWorkers);
+          }
+        }
+
+        if (mRes.status === "fulfilled") {
+          setMalls(mRes.value?.data || []);
+        } else {
+          console.error("Failed to load malls:", mRes.reason);
+        }
+
+        if (bRes.status === "fulfilled") {
+          setBuildings(bRes.value?.data || []);
+        } else {
+          console.error("Failed to load buildings:", bRes.reason);
         }
       };
       fetchData();

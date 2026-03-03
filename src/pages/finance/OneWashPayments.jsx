@@ -413,12 +413,12 @@ const OneWashPayments = () => {
       },
     },
     {
-      header: "Amount",
-      accessor: "amount",
+      header: "Original Amount",
+      accessor: "original_amount",
       className: "text-right",
       render: (row) => (
         <span className="font-bold text-emerald-600 text-sm">
-          {row.amount}{" "}
+          {(row.amount - (row.tip_amount || 0)).toFixed(2)}{" "}
           <span className="text-[10px] text-emerald-400">{currency}</span>
         </span>
       ),
@@ -430,6 +430,17 @@ const OneWashPayments = () => {
       render: (row) => (
         <span className="text-slate-500 text-sm">
           {row.tip_amount ? `${row.tip_amount}` : "-"}
+        </span>
+      ),
+    },
+    {
+      header: "Total Amount",
+      accessor: "amount",
+      className: "text-right",
+      render: (row) => (
+        <span className="font-bold text-emerald-600 text-sm">
+          {row.amount}{" "}
+          <span className="text-[10px] text-emerald-400">{currency}</span>
         </span>
       ),
     },
@@ -578,7 +589,7 @@ const OneWashPayments = () => {
 
         {/* ✅ UPDATED STATS GRID: 5 Equal Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-6">
-          {/* 1. Total Revenue Card */}
+          {/* 1. Original Amount Card */}
           <div className="p-4 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white shadow-md flex items-center gap-4">
             {/* Left: Icon Centered */}
             <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-white shrink-0">
@@ -587,7 +598,7 @@ const OneWashPayments = () => {
             {/* Right: Label Top, Number Bottom */}
             <div>
               <span className="block text-xs font-bold opacity-60 uppercase tracking-wider mb-0.5">
-                Total Revenue
+                Original Amount
               </span>
               <div className="flex items-baseline gap-1">
                 <span className="text-xl font-bold">{stats.totalAmount}</span>
