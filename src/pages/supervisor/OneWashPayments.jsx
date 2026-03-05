@@ -140,14 +140,17 @@ const SupervisorOneWashPayments = () => {
           ...filters,
         });
 
-        setPayments(result.data || []);
+        const dataArray = result.data || [];
+        const backendTotal = result.total || dataArray.length || 0;
+        
+        setPayments(dataArray);
         setStats(result.counts || stats);
-        setTotal(result.total || 0);
+        setTotal(backendTotal);
         setPagination({
           page,
           limit: fetchLimit,
-          total: result.total || 0,
-          totalPages: Math.ceil((result.total || 0) / fetchLimit) || 1,
+          total: backendTotal,
+          totalPages: Math.ceil(backendTotal / fetchLimit) || 1,
         });
       } catch {
         toast.error("Failed to load payments");
@@ -806,7 +809,9 @@ const SupervisorOneWashPayments = () => {
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
         <div className="px-6 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-700">Filtered Results:</span>
+            <span className="text-sm font-semibold text-slate-700">
+              Filtered Results:
+            </span>
             <span className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-sm font-bold">
               {filteredPayments.length} of {total}
             </span>

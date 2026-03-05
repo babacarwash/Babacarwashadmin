@@ -42,6 +42,7 @@ const WorkRecords = () => {
   const [itemsPerPage] = useState(50);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfPageSize, setPdfPageSize] = useState("a4-landscape");
+  const [backendTotals, setBackendTotals] = useState(null);
 
   const today = new Date();
   const currentMonth = today.getMonth() + 1;
@@ -123,12 +124,15 @@ const WorkRecords = () => {
 
       try {
         // Fetch data without worker filter to see all workers with data
-        const data = await workRecordsService.getStatementData(
+        const response = await workRecordsService.getStatementData(
           filters.year,
           filters.month,
           filters.serviceType,
           "", // Empty to get all workers
         );
+
+        // Handle new format { data, total, ... } or old format (array)
+        const data = response?.data || (Array.isArray(response) ? response : []);
 
         if (data && data.length > 0) {
           // Extract unique worker IDs and names from the data
@@ -175,14 +179,24 @@ const WorkRecords = () => {
       setLoadingView(true);
 
       try {
-        const data = await workRecordsService.getStatementData(
+        const response = await workRecordsService.getStatementData(
           filters.year,
           filters.month,
           filters.serviceType,
           filters.serviceType === "residence" ? filters.workerId : "",
         );
 
-        console.log("📊 Raw API Response:", data);
+        // Handle new format { data, total, columnTotals, ... } or old format (array)
+        const data = response?.data || (Array.isArray(response) ? response : []);
+        const totals = response?.columnTotals ? {
+          columnTotals: response.columnTotals,
+          grandTotal: response.grandTotal || 0,
+          totalTips: response.totalTips || 0,
+          total: response.total || data.length,
+        } : null;
+        setBackendTotals(totals);
+
+        console.log("📊 Raw API Response:", response);
 
         if (!data || data.length === 0) {
           setViewData(null);
@@ -564,7 +578,7 @@ const WorkRecords = () => {
             <h2 className="text-xl font-bold text-slate-700">
               Work Records - {monthName} {filters.year}
               <span className="text-sm text-slate-500 ml-3">
-                ({viewData.length} records)
+                ({backendTotals?.total || viewData.length} records)
               </span>
             </h2>
             <button
@@ -887,12 +901,14 @@ const WorkRecords = () => {
                         TOTAL
                       </td>
                       {Array.from({ length: daysInMonth }, (_, dayIndex) => {
-                        const total = viewData.reduce(
-                          (sum, car) =>
-                            sum +
-                            ((car.dailyMarks && car.dailyMarks[dayIndex]) || 0),
-                          0,
-                        );
+                        const total = backendTotals?.columnTotals
+                          ? backendTotals.columnTotals[dayIndex] || 0
+                          : viewData.reduce(
+                              (sum, car) =>
+                                sum +
+                                ((car.dailyMarks && car.dailyMarks[dayIndex]) || 0),
+                              0,
+                            );
                         return (
                           <td
                             key={dayIndex}
@@ -903,8 +919,7 @@ const WorkRecords = () => {
                         );
                       })}
                       <td className="border border-slate-300 p-1 text-center font-bold text-blue-600">
-                        {viewData.reduce((sum, car) => {
-                          // Count total scheduled days for non-deactivated vehicles
+                        {backendTotals?.grandTotal ?? viewData.reduce((sum, car) => {
                           const monthStart = new Date(
                             filters.year,
                             filters.month - 1,
@@ -924,7 +939,7 @@ const WorkRecords = () => {
                         }, 0)}
                       </td>
                       <td className="border border-slate-300 p-1 text-center font-bold text-blue-600">
-                        {viewData.reduce((sum, car) => {
+                        {backendTotals?.totalTips ?? viewData.reduce((sum, car) => {
                           const monthStart = new Date(
                             filters.year,
                             filters.month - 1,
@@ -946,12 +961,14 @@ const WorkRecords = () => {
                         TOTAL
                       </td>
                       {Array.from({ length: daysInMonth }, (_, dayIndex) => {
-                        const total = viewData.reduce(
-                          (sum, w) =>
-                            sum +
-                            ((w.dailyCounts && w.dailyCounts[dayIndex]) || 0),
-                          0,
-                        );
+                        const total = backendTotals?.columnTotals
+                          ? backendTotals.columnTotals[dayIndex] || 0
+                          : viewData.reduce(
+                              (sum, w) =>
+                                sum +
+                                ((w.dailyCounts && w.dailyCounts[dayIndex]) || 0),
+                              0,
+                            );
                         return (
                           <td
                             key={dayIndex}
@@ -962,7 +979,7 @@ const WorkRecords = () => {
                         );
                       })}
                       <td className="border border-slate-300 p-1 text-center text-blue-600">
-                        {viewData.reduce(
+                        {backendTotals?.grandTotal ?? viewData.reduce(
                           (sum, w) =>
                             sum +
                             (w.dailyCounts || []).reduce((s, c) => s + c, 0),
@@ -970,9 +987,9 @@ const WorkRecords = () => {
                         )}
                       </td>
                       <td className="border border-slate-300 p-1 text-center">
-                        {filters.serviceType === "onewash"
+                        {backendTotals?.totalTips ?? (filters.serviceType === "onewash"
                           ? viewData.reduce((sum, w) => sum + (w.tips || 0), 0)
-                          : 0}
+                          : 0)}
                       </td>
                     </tr>
                   )}
