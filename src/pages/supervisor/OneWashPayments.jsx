@@ -593,7 +593,7 @@ const SupervisorOneWashPayments = () => {
                 <span className="text-xs opacity-70">{currency}</span>
               </div>
               <span className="text-[10px] opacity-50">
-                {stats.totalJobs || 0} transactions
+                {total || 0} records
               </span>
             </div>
           </div>
@@ -804,6 +804,15 @@ const SupervisorOneWashPayments = () => {
 
       {/* ─── DATA TABLE ─── */}
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+        <div className="px-6 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-slate-700">Filtered Results:</span>
+            <span className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-sm font-bold">
+              {filteredPayments.length} of {total}
+            </span>
+            <span className="text-xs text-slate-500">total records</span>
+          </div>
+        </div>
         <DataTable
           columns={columns}
           data={filteredPayments}
