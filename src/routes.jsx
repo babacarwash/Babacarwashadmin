@@ -64,6 +64,7 @@ import MonthlyRecords from "./pages/workers-management/MonthlyRecords";
 import YearlyRecords from "./pages/workers-management/YearlyRecords";
 import SalarySlip from "./pages/salary/SalarySlip";
 import PendingPayments from "./pages/pending-payments/PendingPayments";
+import EmployeeWisePayments from "./pages/pending-payments/EmployeeWisePayments";
 
 // Supervisor Pages
 import SupervisorDashboard from "./pages/supervisor/Dashboard";
@@ -138,6 +139,11 @@ export const routes = [
     title: "Pending Payments",
     component: <PendingPayments />,
     icon: BarChart2, // Make sure to import this
+  },
+  {
+    path: "/pending-payments/employee-wise",
+    title: "Employee Wise Checking",
+    component: <EmployeeWisePayments />,
   },
   {
     path: "/salary/slip/:workerId/:year/:month", // New Route

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import {
   FileText,
   Filter,
@@ -8,6 +9,7 @@ import {
   Loader2,
   Calendar,
   FileSpreadsheet,
+  Users,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import jsPDF from "jspdf";
@@ -25,9 +27,33 @@ import CustomDropdown from "../../components/ui/CustomDropdown";
 import RichDateRangePicker from "../../components/inputs/RichDateRangePicker";
 import usePagePermissions from "../../utils/usePagePermissions";
 
+// Helper: compute due date (last day of billing month)
+const getDueDate = (item) => {
+  if (item.billing_month) {
+    // billing_month is "YYYY-MM" e.g. "2026-02"
+    const [y, m] = item.billing_month.split("-").map(Number);
+    return new Date(y, m, 0); // last day of that month
+  }
+  // Fallback: createdAt is 1st of next month, so go back 1 day
+  const d = new Date(item.createdAt);
+  if (d.getDate() === 1) {
+    return new Date(d.getFullYear(), d.getMonth(), 0); // last day of previous month
+  }
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+};
+
+const formatDueDate = (item) => {
+  return getDueDate(item).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
 const PendingPayments = () => {
   const pp = usePagePermissions("pendingPayments");
   const dispatch = useDispatch();
+  const navigate = useNavigate();
 
   // Redux Data
   const { buildings } = useSelector((state) => state.building);
@@ -241,11 +267,8 @@ const PendingPayments = () => {
         regNo: item.vehicle?.registration_no || "-",
         totalDue: item.total_amount || 0,
         paid: item.amount_paid || 0,
-        dueDate: new Date(item.createdAt).toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        }),
+        dueDate: formatDueDate(item),
+        totalDueFigure: Number(item.total_amount || 0).toFixed(2),
         customerMobile: item.customer?.mobile || "-",
       });
     });
@@ -287,6 +310,7 @@ const PendingPayments = () => {
           { header: "Parking No", key: "parking", width: 15 },
           { header: "Reg No", key: "regNo", width: 15 },
           { header: "Amount Pending", key: "amount", width: 18 },
+          { header: "Total Due", key: "totalDue", width: 15 },
           { header: "Due Date", key: "date", width: 15 },
           { header: "Customer Mobile", key: "mobile", width: 18 },
         ];
@@ -312,11 +336,13 @@ const PendingPayments = () => {
               parking: p.parkingNo,
               regNo: p.regNo,
               amount: amountPending,
+              totalDue: Number(p.totalDueFigure),
               date: p.dueDate,
               mobile: p.customerMobile,
             });
 
             row.getCell("amount").numFmt = "#,##0.00";
+            row.getCell("totalDue").numFmt = "#,##0.00";
             row.alignment = { vertical: "middle", horizontal: "center" };
             row.getCell("worker").alignment = { horizontal: "left" };
           });
@@ -438,7 +464,15 @@ const PendingPayments = () => {
           currentY += 3;
 
           const tableHead = [
-            ["Sl", "Parking", "Reg No", "Building", "Amount", "Due Date"],
+            [
+              "Sl",
+              "Parking",
+              "Reg No",
+              "Building",
+              "Amount",
+              "Total Due",
+              "Due Date",
+            ],
           ];
           const tableBody = workerGroup.payments.map((p, i) => {
             const amount = (Number(p.totalDue) - Number(p.paid)).toFixed(2);
@@ -448,6 +482,7 @@ const PendingPayments = () => {
               p.regNo,
               buildingGroup.buildingName,
               amount,
+              p.totalDueFigure,
               p.dueDate,
             ];
           });
@@ -472,11 +507,12 @@ const PendingPayments = () => {
             },
             columnStyles: {
               0: { cellWidth: 8 },
-              1: { cellWidth: 22 },
-              2: { cellWidth: 25 },
+              1: { cellWidth: 18 },
+              2: { cellWidth: 22 },
               3: { cellWidth: "auto" },
-              4: { cellWidth: 20, fontStyle: "bold", halign: "right" },
-              5: { cellWidth: 20 },
+              4: { cellWidth: 18, fontStyle: "bold", halign: "right" },
+              5: { cellWidth: 18, fontStyle: "bold", halign: "right" },
+              6: { cellWidth: 20 },
             },
             margin: { left: margin, right: margin },
           });
@@ -576,19 +612,18 @@ const PendingPayments = () => {
       render: (r) => (r.total_amount - r.amount_paid).toFixed(2),
     },
     {
+      header: "TOTAL DUE",
+      accessor: "total_amount",
+      key: "totalDue",
+      className: "text-right text-xs font-bold text-orange-600",
+      render: (r) => Number(r.total_amount || 0).toFixed(2),
+    },
+    {
       header: "DUE DATE",
       accessor: "createdAt",
       key: "dueDate",
       className: "text-right text-xs text-slate-500",
-      render: (r) => {
-        const d = new Date(r.createdAt);
-        const dueDate = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-        return dueDate.toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        });
-      },
+      render: (r) => formatDueDate(r),
     },
   ];
 
@@ -599,105 +634,131 @@ const PendingPayments = () => {
           <div className="flex items-center gap-2 text-slate-500 font-bold uppercase text-xs tracking-wider">
             <Filter className="w-4 h-4" /> Filter Pending Payments
           </div>
-          {pp.isToolbarVisible("filterMode") && (<div className="flex bg-slate-100 p-1 rounded-lg">
-            <button
-              onClick={() => setFilterMode("date_range")}
-              className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${filterMode === "date_range" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-            >
-              Date Range Wise
-            </button>
-            <button
-              onClick={() => setFilterMode("month")}
-              className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${filterMode === "month" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-            >
-              Month Wise
-            </button>
-          </div>)}
+          {pp.isToolbarVisible("filterMode") && (
+            <div className="flex bg-slate-100 p-1 rounded-lg">
+              <button
+                onClick={() => setFilterMode("date_range")}
+                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${filterMode === "date_range" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Date Range Wise
+              </button>
+              <button
+                onClick={() => setFilterMode("month")}
+                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${filterMode === "month" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Month Wise
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 items-end">
           <div className="lg:col-span-2">
             {filterMode === "date_range" ? (
-              pp.isToolbarVisible("dateRange") && (<div className="w-full">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1 ml-1">
-                  Select Dates
-                </label>
-                <RichDateRangePicker
-                  startDate={filters.startDate}
-                  endDate={filters.endDate}
-                  onChange={handleDateRangeChange}
-                />
-              </div>)
+              pp.isToolbarVisible("dateRange") && (
+                <div className="w-full">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1 ml-1">
+                    Select Dates
+                  </label>
+                  <RichDateRangePicker
+                    startDate={filters.startDate}
+                    endDate={filters.endDate}
+                    onChange={handleDateRangeChange}
+                  />
+                </div>
+              )
             ) : (
               <div className="flex gap-3">
-                {pp.isToolbarVisible("monthFilter") && (<div className="flex-1">
-                  <CustomDropdown
-                    label="Select Month"
-                    value={filters.month}
-                    onChange={(v) => handleFilterChange("month", Number(v))}
-                    options={monthOptions}
-                    icon={Calendar}
-                  />
-                </div>)}
-                {pp.isToolbarVisible("yearFilter") && (<div className="w-32">
-                  <CustomDropdown
-                    label="Select Year"
-                    value={filters.year}
-                    onChange={(v) => handleFilterChange("year", Number(v))}
-                    options={yearOptions}
-                    icon={Calendar}
-                  />
-                </div>)}
+                {pp.isToolbarVisible("monthFilter") && (
+                  <div className="flex-1">
+                    <CustomDropdown
+                      label="Select Month"
+                      value={filters.month}
+                      onChange={(v) => handleFilterChange("month", Number(v))}
+                      options={monthOptions}
+                      icon={Calendar}
+                    />
+                  </div>
+                )}
+                {pp.isToolbarVisible("yearFilter") && (
+                  <div className="w-32">
+                    <CustomDropdown
+                      label="Select Year"
+                      value={filters.year}
+                      onChange={(v) => handleFilterChange("year", Number(v))}
+                      options={yearOptions}
+                      icon={Calendar}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {pp.isToolbarVisible("buildingFilter") && (<div className="xl:col-span-1">
-            <CustomDropdown
-              label="Building"
-              value={filters.building}
-              onChange={(v) => handleFilterChange("building", v)}
-              options={buildingOptions}
-              icon={Building}
-              searchable
-            />
-          </div>)}
-          {pp.isToolbarVisible("workerFilter") && (<div className="xl:col-span-1">
-            <CustomDropdown
-              label="Worker"
-              value={filters.worker}
-              onChange={(v) => handleFilterChange("worker", v)}
-              options={workerOptions}
-              icon={User}
-              searchable
-            />
-          </div>)}
+          {pp.isToolbarVisible("buildingFilter") && (
+            <div className="xl:col-span-1">
+              <CustomDropdown
+                label="Building"
+                value={filters.building}
+                onChange={(v) => handleFilterChange("building", v)}
+                options={buildingOptions}
+                icon={Building}
+                searchable
+              />
+            </div>
+          )}
+          {pp.isToolbarVisible("workerFilter") && (
+            <div className="xl:col-span-1">
+              <CustomDropdown
+                label="Worker"
+                value={filters.worker}
+                onChange={(v) => handleFilterChange("worker", v)}
+                options={workerOptions}
+                icon={User}
+                searchable
+              />
+            </div>
+          )}
 
           <div className="xl:col-span-2 flex gap-2">
-            {pp.isToolbarVisible("exportExcel") && (<button
-              onClick={handleDownloadExcel}
-              disabled={excelLoading}
-              className="flex-1 h-[42px] bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold rounded-xl shadow-lg hover:shadow-green-200 transition-all flex items-center justify-center gap-2 disabled:opacity-70 text-xs"
+            {pp.isToolbarVisible("exportExcel") && (
+              <button
+                onClick={handleDownloadExcel}
+                disabled={excelLoading}
+                className="flex-1 h-[42px] bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold rounded-xl shadow-lg hover:shadow-green-200 transition-all flex items-center justify-center gap-2 disabled:opacity-70 text-xs"
+              >
+                {excelLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-4 h-4" />
+                )}{" "}
+                Excel
+              </button>
+            )}
+            {pp.isToolbarVisible("exportPdf") && (
+              <button
+                onClick={handleDownloadPDF}
+                disabled={pdfLoading}
+                className="flex-1 h-[42px] bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold rounded-xl shadow-lg hover:shadow-red-200 transition-all flex items-center justify-center gap-2 disabled:opacity-70 text-xs"
+              >
+                {pdfLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4" />
+                )}{" "}
+                PDF
+              </button>
+            )}
+            <button
+              onClick={() =>
+                navigate(
+                  `/pending-payments/employee-wise?type=${filters.serviceType || "residence"}`,
+                )
+              }
+              className="flex-1 h-[42px] bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold rounded-xl shadow-lg hover:shadow-indigo-200 transition-all flex items-center justify-center gap-2 text-xs"
             >
-              {excelLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <FileSpreadsheet className="w-4 h-4" />
-              )}{" "}
-              Excel
-            </button>)}
-            {pp.isToolbarVisible("exportPdf") && (<button
-              onClick={handleDownloadPDF}
-              disabled={pdfLoading}
-              className="flex-1 h-[42px] bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold rounded-xl shadow-lg hover:shadow-red-200 transition-all flex items-center justify-center gap-2 disabled:opacity-70 text-xs"
-            >
-              {pdfLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <FileText className="w-4 h-4" />
-              )}{" "}
-              PDF
-            </button>)}
+              <Users className="w-4 h-4" /> Employee Wise
+            </button>
           </div>
         </div>
       </div>

@@ -3,7 +3,10 @@ import api from "./axiosInstance";
 export const workRecordsService = {
   // 1. Standard Excel Download (Blob)
   downloadStatement: async (serviceType, month, year, workerId = "") => {
-    const baseUrl = serviceType === "onewash" ? "/onewash" : "/jobs";
+    const baseUrl =
+      serviceType === "onewash" || serviceType === "mall"
+        ? "/onewash"
+        : "/jobs";
     // Frontend (1-12) to Backend (0-11)
     const adjustedMonth = parseInt(month, 10) - 1;
 
@@ -27,7 +30,10 @@ export const workRecordsService = {
 
   // 2. JSON Data Fetch for Rich PDF (Corrected Route)
   getStatementData: async (year, month, serviceType, workerId = "") => {
-    const baseUrl = serviceType === "onewash" ? "/onewash" : "/jobs";
+    const baseUrl =
+      serviceType === "onewash" || serviceType === "mall"
+        ? "/onewash"
+        : "/jobs";
     const adjustedMonth = parseInt(month, 10) - 1;
 
     const params = {

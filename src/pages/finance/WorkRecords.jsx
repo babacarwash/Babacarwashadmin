@@ -62,6 +62,7 @@ const WorkRecords = () => {
 
   const serviceTypeOptions = [
     { value: "residence", label: "Residence", icon: Layers },
+    { value: "mall", label: "Mall", icon: Layers },
   ];
 
   const yearOptions = useMemo(() => {
@@ -111,7 +112,7 @@ const WorkRecords = () => {
   }, [availableMonths, filters.month]);
 
   useEffect(() => {
-    if (filters.serviceType === "residence") {
+    if (filters.serviceType === "residence" || filters.serviceType === "mall") {
       dispatch(fetchWorkers({ page: 1, limit: 1000, search: "", status: 1 }));
     }
   }, [dispatch, filters.serviceType]);
@@ -119,7 +120,11 @@ const WorkRecords = () => {
   // Fetch workers with data for selected month/year
   useEffect(() => {
     const fetchAvailableWorkers = async () => {
-      if (filters.serviceType !== "residence" || availableMonths.length === 0) {
+      if (
+        (filters.serviceType !== "residence" &&
+          filters.serviceType !== "mall") ||
+        availableMonths.length === 0
+      ) {
         setAvailableWorkers([]);
         return;
       }
@@ -157,13 +162,13 @@ const WorkRecords = () => {
   }, [filters.serviceType, filters.year, filters.month, availableMonths]);
 
   const workersOptions = useMemo(() => {
-    // Always show all residence workers, not just those with data
+    // Always show all workers of selected service type, not just those with data
     if (!workersList || workersList.length === 0) return [];
-    // Filter to show only residence workers
+    // Filter to show only workers matching the selected service type
     return workersList
-      .filter((w) => w.service_type === "residence")
+      .filter((w) => w.service_type === filters.serviceType)
       .map((w) => ({ value: w._id, label: w.name }));
-  }, [workersList]);
+  }, [workersList, filters.serviceType]);
 
   const pageSizeOptions = [
     { value: "a4-landscape", label: "A4 Landscape" },
@@ -186,7 +191,9 @@ const WorkRecords = () => {
           filters.year,
           filters.month,
           filters.serviceType,
-          filters.serviceType === "residence" ? filters.workerId : "",
+          filters.serviceType === "residence" || filters.serviceType === "mall"
+            ? filters.workerId
+            : "",
         );
 
         // Handle new format { data, total, columnTotals, ... } or old format (array)
@@ -283,7 +290,11 @@ const WorkRecords = () => {
           serviceType: filters.serviceType,
           month: filters.month,
           year: filters.year,
-          workerId: filters.serviceType === "residence" ? filters.workerId : "",
+          workerId:
+            filters.serviceType === "residence" ||
+            filters.serviceType === "mall"
+              ? filters.workerId
+              : "",
         }),
       ).unwrap();
       const blob = result.blob;
@@ -314,7 +325,9 @@ const WorkRecords = () => {
           filters.year,
           filters.month,
           filters.serviceType,
-          filters.serviceType === "residence" ? filters.workerId : "",
+          filters.serviceType === "residence" || filters.serviceType === "mall"
+            ? filters.workerId
+            : "",
         );
       }
 
@@ -1063,83 +1076,97 @@ const WorkRecords = () => {
             <Filter className="w-4 h-4" /> Statement Parameters
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 items-end">
-            {pp.isToolbarVisible("serviceTypeFilter") && (<div>
-              <CustomDropdown
-                label="Service Type"
-                value={filters.serviceType}
-                onChange={(val) =>
-                  setFilters({ ...filters, serviceType: val, workerId: "" })
-                }
-                options={serviceTypeOptions}
-                icon={Layers}
-                placeholder="Select Service"
-              />
-            </div>)}
-            {pp.isToolbarVisible("yearFilter") && (<div>
-              <CustomDropdown
-                label="Year"
-                value={filters.year}
-                onChange={(val) =>
-                  setFilters({ ...filters, year: Number(val) })
-                }
-                options={yearOptions}
-                icon={Calendar}
-                placeholder="Select Year"
-              />
-            </div>)}
-            {pp.isToolbarVisible("monthFilter") && (<div>
-              <CustomDropdown
-                label="Month"
-                value={filters.month}
-                onChange={(val) =>
-                  setFilters({ ...filters, month: Number(val) })
-                }
-                options={availableMonths}
-                icon={Calendar}
-                placeholder={
-                  availableMonths.length === 0
-                    ? "No completed months"
-                    : "Select Month"
-                }
-                disabled={availableMonths.length === 0}
-              />
-            </div>)}
-            {pp.isToolbarVisible("workerFilter") && filters.serviceType === "residence" && (
+            {pp.isToolbarVisible("serviceTypeFilter") && (
               <div>
                 <CustomDropdown
-                  label="Worker (Optional)"
-                  value={filters.workerId}
-                  onChange={(val) => setFilters({ ...filters, workerId: val })}
-                  options={[
-                    { value: "", label: "All Workers" },
-                    ...workersOptions,
-                  ]}
-                  icon={Filter}
-                  placeholder="Filter by Worker"
-                  searchable
+                  label="Service Type"
+                  value={filters.serviceType}
+                  onChange={(val) =>
+                    setFilters({ ...filters, serviceType: val, workerId: "" })
+                  }
+                  options={serviceTypeOptions}
+                  icon={Layers}
+                  placeholder="Select Service"
                 />
               </div>
             )}
+            {pp.isToolbarVisible("yearFilter") && (
+              <div>
+                <CustomDropdown
+                  label="Year"
+                  value={filters.year}
+                  onChange={(val) =>
+                    setFilters({ ...filters, year: Number(val) })
+                  }
+                  options={yearOptions}
+                  icon={Calendar}
+                  placeholder="Select Year"
+                />
+              </div>
+            )}
+            {pp.isToolbarVisible("monthFilter") && (
+              <div>
+                <CustomDropdown
+                  label="Month"
+                  value={filters.month}
+                  onChange={(val) =>
+                    setFilters({ ...filters, month: Number(val) })
+                  }
+                  options={availableMonths}
+                  icon={Calendar}
+                  placeholder={
+                    availableMonths.length === 0
+                      ? "No completed months"
+                      : "Select Month"
+                  }
+                  disabled={availableMonths.length === 0}
+                />
+              </div>
+            )}
+            {pp.isToolbarVisible("workerFilter") &&
+              (filters.serviceType === "residence" ||
+                filters.serviceType === "mall") && (
+                <div>
+                  <CustomDropdown
+                    label="Worker (Optional)"
+                    value={filters.workerId}
+                    onChange={(val) =>
+                      setFilters({ ...filters, workerId: val })
+                    }
+                    options={[
+                      { value: "", label: "All Workers" },
+                      ...workersOptions,
+                    ]}
+                    icon={Filter}
+                    placeholder="Filter by Worker"
+                    searchable
+                  />
+                </div>
+              )}
             <div className="flex gap-2">
-              {pp.isToolbarVisible("exportExcel") && (<button
-                onClick={handleDownloadExcel}
-                disabled={pdfLoading || availableMonths.length === 0}
-                className="flex-1 h-[42px] bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 text-xs"
-              >
-                <FileSpreadsheet className="w-4 h-4" /> Excel
-              </button>)}
-              {pp.isToolbarVisible("exportPdf") && (<button
-                onClick={() => setShowPdfModal(true)}
-                disabled={pdfLoading || availableMonths.length === 0}
-                className="flex-1 h-[42px] bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 text-xs"
-              >
-                {pdfLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <FileText className="w-4 h-4" />
-                )}{" "}
-                PDF
-              </button>)}
+              {pp.isToolbarVisible("exportExcel") && (
+                <button
+                  onClick={handleDownloadExcel}
+                  disabled={pdfLoading || availableMonths.length === 0}
+                  className="flex-1 h-[42px] bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 text-xs"
+                >
+                  <FileSpreadsheet className="w-4 h-4" /> Excel
+                </button>
+              )}
+              {pp.isToolbarVisible("exportPdf") && (
+                <button
+                  onClick={() => setShowPdfModal(true)}
+                  disabled={pdfLoading || availableMonths.length === 0}
+                  className="flex-1 h-[42px] bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 text-xs"
+                >
+                  {pdfLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FileText className="w-4 h-4" />
+                  )}{" "}
+                  PDF
+                </button>
+              )}
             </div>
           </div>
         </div>

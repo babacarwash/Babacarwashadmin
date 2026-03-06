@@ -98,6 +98,9 @@ const BlockedDeactivationModal = ({
                     Charged
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 border-b">
+                    Previous Due
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 border-b">
                     Paid
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 border-b">
@@ -112,7 +115,7 @@ const BlockedDeactivationModal = ({
                 {payments.map((payment, index) => {
                   const amountDue =
                     payment.amountDue ||
-                    (payment.amount_charged || 0) - (payment.amount_paid || 0);
+                    (payment.total_amount || 0) - (payment.amount_paid || 0);
 
                   return (
                     <tr
@@ -153,6 +156,11 @@ const BlockedDeactivationModal = ({
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
+                        <span className="text-sm font-medium text-orange-600">
+                          AED {(payment.old_balance || 0).toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
                         <span className="text-sm font-medium text-gray-800">
                           AED {(payment.amount_paid || 0).toFixed(2)}
                         </span>
@@ -174,7 +182,7 @@ const BlockedDeactivationModal = ({
               <tfoot className="bg-gray-50 border-t-2 border-gray-300">
                 <tr>
                   <td
-                    colSpan="6"
+                    colSpan="7"
                     className="px-4 py-3 text-right font-bold text-gray-800"
                   >
                     Total Outstanding:

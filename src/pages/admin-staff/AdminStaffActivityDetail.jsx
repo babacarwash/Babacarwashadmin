@@ -1313,7 +1313,8 @@ const AdminStaffActivityDetail = () => {
             badge={pageAnalytics.length}
           />
           <p className="text-xs text-slate-600 mt-1 font-medium">
-            In-depth analysis of admin staff member&apos;s admin panel usage per page
+            In-depth analysis of admin staff member&apos;s admin panel usage per
+            page
           </p>
         </div>
         {pageAnalytics.length === 0 ? (
