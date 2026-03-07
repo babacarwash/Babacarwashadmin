@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePermissions } from "../utils/usePermissions";
+import { adminMessagesService } from "../api/adminMessagesService";
 
 import {
   LayoutDashboard,
@@ -39,6 +40,8 @@ const Sidebar = ({ isOpen, isMobile, onClose }) => {
   const user = userString ? JSON.parse(userString) : {};
   const userRole = user.role || "admin";
 
+  const [totalUnreadMessages, setTotalUnreadMessages] = useState(0);
+
   const [openMenus, setOpenMenus] = useState({
     workers: false,
     customers: false,
@@ -46,6 +49,18 @@ const Sidebar = ({ isOpen, isMobile, onClose }) => {
     payments: false,
     settings: false,
   });
+
+  // Fetch total unread messages for admin
+  const fetchTotalUnreadMessages = async () => {
+    if (userRole !== "admin" && userRole !== "manager") return;
+
+    try {
+      const response = await adminMessagesService.getTotalUnread();
+      setTotalUnreadMessages(response.count || 0);
+    } catch (error) {
+      console.error("Failed to fetch total unread messages:", error);
+    }
+  };
 
   // auto expand menu if route is inside it
   useEffect(() => {
@@ -68,6 +83,17 @@ const Sidebar = ({ isOpen, isMobile, onClose }) => {
       setOpenMenus((p) => ({ ...p, settings: true }));
     }
   }, [location.pathname]);
+
+  // Poll for unread messages
+  useEffect(() => {
+    fetchTotalUnreadMessages();
+
+    const pollInterval = setInterval(() => {
+      fetchTotalUnreadMessages();
+    }, 10000); // Every 10 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [userRole]);
 
   const toggleMenu = (k) => setOpenMenus((p) => ({ ...p, [k]: !p[k] }));
 
@@ -124,13 +150,19 @@ const Sidebar = ({ isOpen, isMobile, onClose }) => {
           />
 
           {/* text logo → visible on mobile OR on desktop hover */}
-          <img
-            src="/logo-text.png"
-            alt="Baba Car Wash"
-            className={`h-8 max-w-[140px] object-contain ${
+          <span
+            className={`text-2xl font-bold ${
               isMobile ? "block" : "hidden group-hover:block"
             }`}
-          />
+            style={{
+              color: "#5DD5C0",
+              fontFamily: "Arial, Helvetica, sans-serif",
+              fontWeight: "700",
+              letterSpacing: "0.02em",
+            }}
+          >
+            BABACARWASH
+          </span>
 
           {/* mobile close button (unchanged) */}
           {isMobile && (
@@ -594,6 +626,7 @@ const Sidebar = ({ isOpen, isMobile, onClose }) => {
                       label="Admin Staff"
                       onClick={handleLinkClick}
                       isMobile={isMobile}
+                      badge={totalUnreadMessages}
                     />
                   </>
                 )}
@@ -620,7 +653,7 @@ const Sidebar = ({ isOpen, isMobile, onClose }) => {
 
 /* ---------- COMPONENTS ---------- */
 
-const NavItem = ({ to, icon: Icon, label, onClick, isMobile }) => (
+const NavItem = ({ to, icon: Icon, label, onClick, isMobile, badge }) => (
   <li>
     <NavLink
       to={to}
@@ -651,12 +684,25 @@ const NavItem = ({ to, icon: Icon, label, onClick, isMobile }) => (
 
           {/* Label: Always visible on Mobile OR on Desktop Hover */}
           <span
-            className={`truncate ${
+            className={`truncate flex-1 ${
               isMobile ? "inline" : "hidden group-hover:inline"
             }`}
           >
             {label}
           </span>
+
+          {/* Badge for notifications */}
+          {badge > 0 && (
+            <span
+              className={`ml-auto ${
+                isMobile ? "flex" : "hidden group-hover:flex"
+              } items-center justify-center w-5 h-5 text-[10px] font-bold rounded-full ${
+                isActive ? "bg-white text-primary" : "bg-red-500 text-white"
+              }`}
+            >
+              {badge}
+            </span>
+          )}
         </>
       )}
     </NavLink>

@@ -23,11 +23,14 @@ import {
   Info,
   Zap,
   Filter,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { adminStaffService } from "../../api/adminStaffService";
+import { ALL_PERMISSION_MODULES } from "../../utils/usePermissions";
 import PAGE_PERMISSIONS_CONFIG from "../../utils/pagePermissionsConfig";
 import { clsx } from "clsx";
 
@@ -701,6 +704,7 @@ export default function StaffPermissions() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pagePermissions, setPagePermissions] = useState({});
+  const [modulePermissions, setModulePermissions] = useState({});
   const [expandedPages, setExpandedPages] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -715,6 +719,7 @@ export default function StaffPermissions() {
       const res = await adminStaffService.getById(id);
       setStaff(res.data);
       setPagePermissions(res.data.pagePermissions || {});
+      setModulePermissions(res.data.permissions || {});
     } catch (err) {
       toast.error("Failed to load staff member");
       navigate("/admin-staff");
@@ -865,8 +870,11 @@ export default function StaffPermissions() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      await adminStaffService.updatePagePermissions(id, pagePermissions);
-      toast.success("Page permissions saved successfully");
+      await Promise.all([
+        adminStaffService.updatePagePermissions(id, pagePermissions),
+        adminStaffService.updatePermissions(id, modulePermissions),
+      ]);
+      toast.success("Permissions saved successfully");
       setHasChanges(false);
     } catch (err) {
       toast.error("Failed to save page permissions");
@@ -1009,19 +1017,134 @@ export default function StaffPermissions() {
           </div>
           <div>
             <p className="text-sm text-slate-700 font-medium leading-relaxed">
-              Configure which{" "}
+              First toggle{" "}
+              <strong className="text-blue-700">Module Access</strong> to
+              control which sections appear in the sidebar. Then configure
+              granular{" "}
               <strong className="text-indigo-700">table columns</strong>,{" "}
               <strong className="text-violet-700">row actions</strong>, and{" "}
               <strong className="text-emerald-700">
                 toolbar buttons/filters
               </strong>{" "}
-              this staff member can see on each page. Use the toggles to enable
-              or disable individual items.
+              for each enabled page.
             </p>
             <p className="text-xs text-slate-400 mt-1.5">
-              Only pages with module-level VIEW access are shown. Changes won't
-              take effect until you save.
+              Changes won't take effect until you save.
             </p>
+          </div>
+        </motion.div>
+
+        {/* ═══ MODULE ACCESS SECTION ═══ */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+        >
+          <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-cyan-50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-md shadow-blue-200">
+                  <Shield className="w-4.5 h-4.5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 tracking-wide uppercase">
+                    Module Access (Sidebar Visibility)
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Toggle which sections this staff member can see in the
+                    sidebar
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setHasChanges(true);
+                    setModulePermissions((prev) => {
+                      const updated = { ...prev };
+                      ALL_PERMISSION_MODULES.forEach(({ key, actions }) => {
+                        updated[key] = {};
+                        actions.forEach((a) => {
+                          updated[key][a] = true;
+                        });
+                      });
+                      return updated;
+                    });
+                  }}
+                  className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition-all"
+                >
+                  <Unlock className="w-3 h-3" />
+                  Enable All
+                </button>
+                <button
+                  onClick={() => {
+                    setHasChanges(true);
+                    setModulePermissions((prev) => {
+                      const updated = { ...prev };
+                      ALL_PERMISSION_MODULES.forEach(({ key, actions }) => {
+                        updated[key] = {};
+                        actions.forEach((a) => {
+                          updated[key][a] = false;
+                        });
+                      });
+                      return updated;
+                    });
+                  }}
+                  className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-all"
+                >
+                  <Lock className="w-3 h-3" />
+                  Disable All
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            {ALL_PERMISSION_MODULES.map(({ key, label, actions }) => {
+              const isEnabled = modulePermissions[key]?.view === true;
+              return (
+                <div
+                  key={key}
+                  onClick={() => {
+                    setHasChanges(true);
+                    setModulePermissions((prev) => {
+                      const updated = { ...prev };
+                      const newState = !isEnabled;
+                      updated[key] = {};
+                      actions.forEach((a) => {
+                        updated[key][a] = newState;
+                      });
+                      return updated;
+                    });
+                  }}
+                  className={clsx(
+                    "relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 select-none hover:scale-[1.02] active:scale-[0.98]",
+                    isEnabled
+                      ? "bg-blue-50 border-blue-200 shadow-sm"
+                      : "bg-white border-slate-200 hover:border-slate-300",
+                  )}
+                >
+                  <div
+                    className={clsx(
+                      "absolute top-2 right-2 w-2.5 h-2.5 rounded-full transition-all duration-300",
+                      isEnabled ? "bg-blue-500 shadow-sm" : "bg-slate-300",
+                    )}
+                  />
+                  {isEnabled ? (
+                    <ToggleRight className="w-6 h-6 text-blue-500" />
+                  ) : (
+                    <ToggleLeft className="w-6 h-6 text-slate-400" />
+                  )}
+                  <span
+                    className={clsx(
+                      "text-xs font-semibold text-center leading-tight",
+                      isEnabled ? "text-slate-700" : "text-slate-400",
+                    )}
+                  >
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </motion.div>
 

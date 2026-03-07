@@ -12,8 +12,6 @@ import {
   Eye,
   EyeOff,
   X,
-  ChevronDown,
-  ChevronUp,
   LayoutGrid,
   MessageSquare,
   Shield,
@@ -22,6 +20,9 @@ import {
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { adminStaffService } from "../../api/adminStaffService";
+import { adminMessagesService } from "../../api/adminMessagesService";
+import AdminChatModal from "../../components/modals/AdminChatModal";
+import DataTable from "../../components/DataTable";
 
 const AdminStaff = () => {
   const navigate = useNavigate();
@@ -36,10 +37,29 @@ const AdminStaff = () => {
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  // Chat Modal
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatStaff, setChatStaff] = useState(null);
+  const [unreadCounts, setUnreadCounts] = useState({});
+
   // Create/Edit form
   const [form, setForm] = useState({ name: "", number: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+
+  // Get current user from localStorage
+  const userString = localStorage.getItem("user");
+  const currentUser = userString ? JSON.parse(userString) : {};
+
+  // Fetch unread message counts for all staff
+  const fetchUnreadCounts = async () => {
+    try {
+      const response = await adminMessagesService.getAllUnreadCounts();
+      setUnreadCounts(response.data || {});
+    } catch (error) {
+      console.error("Failed to fetch unread counts:", error);
+    }
+  };
 
   // Fetch admin staff list
   const fetchData = async () => {
@@ -57,6 +77,14 @@ const AdminStaff = () => {
 
   useEffect(() => {
     fetchData();
+    fetchUnreadCounts();
+
+    // Poll for unread counts every 10 seconds
+    const pollInterval = setInterval(() => {
+      fetchUnreadCounts();
+    }, 10000);
+
+    return () => clearInterval(pollInterval);
   }, [search]);
 
   // Create or Update Staff
@@ -131,245 +159,256 @@ const AdminStaff = () => {
     }
   };
 
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-text-main flex items-center gap-2">
-            <Shield className="w-7 h-7 text-primary" />
-            Admin Staff Management
-          </h1>
-          <p className="text-sm text-text-sub mt-1">
-            Create and manage staff members who can access the admin panel with
-            restricted permissions
-          </p>
+  // Columns for DataTable
+  const columns = [
+    {
+      key: "name",
+      header: "Staff Member",
+      className: "min-w-[220px]",
+      render: (row) => (
+        <div className="flex items-center gap-4 py-1">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-200/50">
+            <span className="text-sm font-black text-white">
+              {row.name?.charAt(0)?.toUpperCase()}
+            </span>
+          </div>
+          <div>
+            <h3 className="font-extrabold text-slate-800 text-[14px] leading-snug">
+              {row.name}
+            </h3>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Staff
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
+      ),
+    },
+    {
+      key: "number",
+      header: "Phone",
+      render: (row) => (
+        <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
+          <Phone className="w-3.5 h-3.5 text-slate-400" />
+          {row.number}
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (row) => (
+        <button
+          onClick={() => handleToggleBlock(row)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            row.isBlocked
+              ? "bg-red-50 text-red-600 hover:bg-red-100 border border-red-100"
+              : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
+          }`}
+        >
+          {row.isBlocked ? (
+            <>
+              <ShieldOff className="w-3 h-3" /> Blocked
+            </>
+          ) : (
+            <>
+              <ShieldCheck className="w-3 h-3" /> Active
+            </>
+          )}
+        </button>
+      ),
+    },
+    {
+      key: "createdAt",
+      header: "Created",
+      render: (row) => (
+        <span className="text-slate-500 text-xs font-semibold">
+          {row.createdAt
+            ? new Date(row.createdAt).toLocaleDateString("en-GB")
+            : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      className: "text-right",
+      render: (row) => (
+        <div className="flex items-center justify-end gap-1">
           <button
-            onClick={() => navigate("/admin-staff/access-requests")}
-            className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-medium text-sm"
+            onClick={() => {
+              setChatStaff(row);
+              setIsChatOpen(true);
+            }}
+            className="relative p-2 hover:bg-green-50 text-slate-400 hover:text-green-600 rounded-xl transition-all"
+            title="Messages"
           >
             <MessageSquare className="w-4 h-4" />
-            Access Requests
+            {unreadCounts[row._id] > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+                {unreadCounts[row._id]}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => navigate(`/admin-staff/${row._id}/activity`)}
+            className="p-2 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-xl transition-all"
+            title="Activity Tracking"
+          >
+            <Activity className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => handleEdit(row)}
+            className="p-2 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-xl transition-all"
+            title="Edit"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => navigate(`/admin-staff/${row._id}/page-permissions`)}
+            className="p-2 hover:bg-purple-50 text-slate-400 hover:text-purple-600 rounded-xl transition-all"
+            title="Permissions"
+          >
+            <LayoutGrid className="w-4 h-4" />
           </button>
           <button
             onClick={() => {
-              setIsEditing(false);
-              setSelectedStaff(null);
-              setForm({ name: "", number: "", password: "" });
-              setIsCreateOpen(true);
+              setSelectedStaff(row);
+              setIsDeleteOpen(true);
             }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium text-sm"
+            className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-xl transition-all"
+            title="Delete"
           >
-            <Plus className="w-4 h-4" />
-            Add Staff
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
-      </div>
+      ),
+    },
+  ];
 
-      {/* Search */}
-      <div className="mb-6">
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-sub" />
-          <input
-            type="text"
-            placeholder="Search by name or phone..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-          />
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Users className="w-5 h-5 text-primary" />
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6 font-sans">
+      {/* Header Card */}
+      <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-6 mb-6 relative z-20">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+              <Shield className="w-6 h-6 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-text-main">{total}</p>
-              <p className="text-xs text-text-sub">Total Staff</p>
+              <h1 className="text-xl font-black text-slate-800 tracking-tight">
+                Admin Staff Management
+              </h1>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">
+                Create and manage staff members with restricted admin access
+              </p>
             </div>
           </div>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4">
+
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5 text-emerald-500" />
+            <div className="relative w-64 group">
+              <Search className="absolute left-4 top-3 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+              <input
+                type="text"
+                placeholder="Search staff..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full h-10 pl-11 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
+              />
+            </div>
+            <button
+              onClick={() => {
+                setIsEditing(false);
+                setSelectedStaff(null);
+                setForm({ name: "", number: "", password: "" });
+                setIsCreateOpen(true);
+              }}
+              className="h-10 px-5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-indigo-200 active:scale-95 transition-all"
+            >
+              <Plus className="w-4 h-4" /> Add Staff
+            </button>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4 border-t border-gray-100 pt-5">
+          <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl">
+            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+              <Users className="w-5 h-5 text-indigo-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-text-main">
+              <p className="text-xl font-black text-slate-800">{total}</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Total Staff
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl">
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+              <ShieldCheck className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-xl font-black text-slate-800">
                 {data.filter((s) => !s.isBlocked).length}
               </p>
-              <p className="text-xs text-text-sub">Active</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Active
+              </p>
             </div>
           </div>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
+          <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl">
+            <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
               <ShieldOff className="w-5 h-5 text-red-500" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-text-main">
+              <p className="text-xl font-black text-slate-800">
                 {data.filter((s) => s.isBlocked).length}
               </p>
-              <p className="text-xs text-text-sub">Blocked</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Blocked
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-6 h-6 animate-spin text-primary" />
-          </div>
-        ) : data.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-text-sub">
-            <Users className="w-12 h-12 mb-3 opacity-30" />
-            <p className="text-sm">No admin staff found</p>
-            <p className="text-xs mt-1">
-              Click "Add Staff" to create a new staff member
-            </p>
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-page">
-                <th className="text-left py-3 px-4 font-semibold text-text-sub text-xs uppercase">
-                  Name
-                </th>
-                <th className="text-left py-3 px-4 font-semibold text-text-sub text-xs uppercase">
-                  Phone
-                </th>
-                <th className="text-left py-3 px-4 font-semibold text-text-sub text-xs uppercase">
-                  Status
-                </th>
-                <th className="text-left py-3 px-4 font-semibold text-text-sub text-xs uppercase">
-                  Created
-                </th>
-                <th className="text-right py-3 px-4 font-semibold text-text-sub text-xs uppercase">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((staff) => (
-                <tr
-                  key={staff._id}
-                  className="border-b border-border/50 hover:bg-page/50 transition-colors"
-                >
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-xs font-bold text-primary">
-                          {staff.name?.charAt(0)?.toUpperCase()}
-                        </span>
-                      </div>
-                      <span className="font-medium text-text-main">
-                        {staff.name}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-1.5 text-text-sub">
-                      <Phone className="w-3.5 h-3.5" />
-                      {staff.number}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4">
-                    <button
-                      onClick={() => handleToggleBlock(staff)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors cursor-pointer ${
-                        staff.isBlocked
-                          ? "bg-red-50 text-red-600 hover:bg-red-100"
-                          : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
-                      }`}
-                    >
-                      {staff.isBlocked ? (
-                        <>
-                          <ShieldOff className="w-3 h-3" /> Blocked
-                        </>
-                      ) : (
-                        <>
-                          <ShieldCheck className="w-3 h-3" /> Active
-                        </>
-                      )}
-                    </button>
-                  </td>
-                  <td className="py-3 px-4 text-text-sub text-xs">
-                    {staff.createdAt
-                      ? new Date(staff.createdAt).toLocaleDateString("en-GB")
-                      : "—"}
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() =>
-                          navigate(`/admin-staff/${staff._id}/activity`)
-                        }
-                        className="p-2 hover:bg-blue-50 text-text-sub hover:text-blue-600 rounded-lg transition-colors"
-                        title="Activity Tracking"
-                      >
-                        <Activity className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleEdit(staff)}
-                        className="p-2 hover:bg-primary/10 text-text-sub hover:text-primary rounded-lg transition-colors"
-                        title="Edit"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() =>
-                          navigate(`/admin-staff/${staff._id}/page-permissions`)
-                        }
-                        className="p-2 hover:bg-indigo-50 text-text-sub hover:text-indigo-600 rounded-lg transition-colors"
-                        title="Page Permissions (Columns, Actions, Toolbar)"
-                      >
-                        <LayoutGrid className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedStaff(staff);
-                          setIsDeleteOpen(true);
-                        }}
-                        className="p-2 hover:bg-red-50 text-text-sub hover:text-red-500 rounded-lg transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      {/* Data Table */}
+      <div className="bg-white rounded-3xl shadow-2xl shadow-slate-200/50 border border-slate-100/60 overflow-hidden relative z-10">
+        <DataTable
+          columns={columns}
+          data={data}
+          loading={loading}
+          hideSearch={true}
+        />
       </div>
 
       {/* ======= CREATE/EDIT MODAL ======= */}
       {isCreateOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl shadow-xl border border-border w-full max-w-md">
-            <div className="p-6 border-b border-border">
-              <h2 className="text-lg font-bold text-text-main">
-                {isEditing ? "Edit Staff" : "Add New Staff"}
-              </h2>
-              <p className="text-xs text-text-sub mt-1">
-                {isEditing
-                  ? "Update staff member details"
-                  : "Create a new admin panel staff member"}
-              </p>
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-md">
+            <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-indigo-50 rounded-t-3xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                  {isEditing ? (
+                    <Edit2 className="w-5 h-5 text-white" />
+                  ) : (
+                    <Plus className="w-5 h-5 text-white" />
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-slate-800">
+                    {isEditing ? "Edit Staff" : "Add New Staff"}
+                  </h2>
+                  <p className="text-xs text-slate-400 font-medium">
+                    {isEditing
+                      ? "Update staff member details"
+                      : "Create a new admin panel staff member"}
+                  </p>
+                </div>
+              </div>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-text-main mb-1.5">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                   Full Name
                 </label>
                 <input
@@ -377,11 +416,11 @@ const AdminStaff = () => {
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Enter full name"
-                  className="w-full px-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-page"
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none bg-slate-50 focus:bg-white transition-all"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-text-main mb-1.5">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                   Phone Number
                 </label>
                 <input
@@ -389,14 +428,14 @@ const AdminStaff = () => {
                   value={form.number}
                   onChange={(e) => setForm({ ...form, number: e.target.value })}
                   placeholder="Enter phone number"
-                  className="w-full px-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-page"
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none bg-slate-50 focus:bg-white transition-all"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-text-main mb-1.5">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                   Password{" "}
                   {isEditing && (
-                    <span className="text-text-sub font-normal">
+                    <span className="text-slate-400 font-medium normal-case">
                       (leave blank to keep current)
                     </span>
                   )}
@@ -411,12 +450,12 @@ const AdminStaff = () => {
                     placeholder={
                       isEditing ? "Enter new password" : "Enter password"
                     }
-                    className="w-full px-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-page pr-10"
+                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none bg-slate-50 focus:bg-white transition-all pr-12"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-sub hover:text-text-main"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                   >
                     {showPassword ? (
                       <EyeOff className="w-4 h-4" />
@@ -427,7 +466,7 @@ const AdminStaff = () => {
                 </div>
               </div>
             </div>
-            <div className="p-6 border-t border-border flex justify-end gap-3">
+            <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50 rounded-b-3xl">
               <button
                 onClick={() => {
                   setIsCreateOpen(false);
@@ -435,14 +474,14 @@ const AdminStaff = () => {
                   setIsEditing(false);
                   setSelectedStaff(null);
                 }}
-                className="px-4 py-2.5 text-sm font-medium text-text-sub hover:text-text-main border border-border rounded-lg hover:bg-page transition-colors"
+                className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl hover:bg-white transition-all"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-2.5 text-sm font-medium bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2.5 text-sm font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 flex items-center gap-2 shadow-md shadow-indigo-200"
               >
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                 {isEditing ? "Update" : "Create"}
@@ -455,34 +494,34 @@ const AdminStaff = () => {
       {/* ======= DELETE CONFIRMATION ======= */}
       {isDeleteOpen && selectedStaff && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl shadow-xl border border-border w-full max-w-sm">
-            <div className="p-6 text-center">
-              <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
-                <Trash2 className="w-7 h-7 text-red-500" />
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-sm">
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8 text-red-500" />
               </div>
-              <h3 className="text-lg font-bold text-text-main">
+              <h3 className="text-lg font-black text-slate-800">
                 Delete Staff Member?
               </h3>
-              <p className="text-sm text-text-sub mt-2">
+              <p className="text-sm text-slate-500 mt-2">
                 Are you sure you want to delete{" "}
-                <strong>{selectedStaff.name}</strong>? They will no longer be
-                able to access the admin panel.
+                <strong className="text-slate-700">{selectedStaff.name}</strong>
+                ? They will no longer be able to access the admin panel.
               </p>
             </div>
-            <div className="p-4 border-t border-border flex gap-3">
+            <div className="p-4 border-t border-slate-100 flex gap-3">
               <button
                 onClick={() => {
                   setIsDeleteOpen(false);
                   setSelectedStaff(null);
                 }}
-                className="flex-1 px-4 py-2.5 text-sm font-medium text-text-sub border border-border rounded-lg hover:bg-page transition-colors"
+                className="flex-1 px-4 py-2.5 text-sm font-bold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
                 disabled={saving}
-                className="flex-1 px-4 py-2.5 text-sm font-medium bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2.5 text-sm font-bold bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-md shadow-red-200"
               >
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                 Delete
@@ -491,6 +530,24 @@ const AdminStaff = () => {
           </div>
         </div>
       )}
+
+      {/* ======= CHAT MODAL ======= */}
+      <AdminChatModal
+        isOpen={isChatOpen}
+        onClose={() => {
+          setIsChatOpen(false);
+          setChatStaff(null);
+          fetchUnreadCounts();
+        }}
+        staff={chatStaff}
+        currentUser={currentUser}
+      />
+
+      <style>{`
+        .DataTable th { font-weight: 900; color: #94a3b8; text-transform: uppercase; font-size: 10px; letter-spacing: 0.1em; padding: 20px 28px !important; border-bottom: 2px solid #f8fafc; background: #fff; }
+        .DataTable td { padding: 16px 28px !important; border-bottom: 1px solid #f8fafc; vertical-align: middle; background: #fff; }
+        .DataTable tr:hover td { background: #fafbff; }
+      `}</style>
     </div>
   );
 };
