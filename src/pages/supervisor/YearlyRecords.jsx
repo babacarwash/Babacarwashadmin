@@ -52,8 +52,7 @@ const SupervisorYearlyRecords = () => {
       .toLowerCase();
 
   const hasMallAssignment = (worker) =>
-    (Array.isArray(worker?.malls) && worker.malls.length > 0) ||
-    !!worker?.mall;
+    (Array.isArray(worker?.malls) && worker.malls.length > 0) || !!worker?.mall;
 
   const isMallWorker = (worker) =>
     normalizeServiceType(worker) === "mall" && hasMallAssignment(worker);

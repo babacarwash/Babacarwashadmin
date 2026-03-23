@@ -148,8 +148,7 @@ const WorkRecords = () => {
         .trim()
         .toLowerCase();
 
-    const isMallWorker = (worker) =>
-      normalizeServiceType(worker) === "mall";
+    const isMallWorker = (worker) => normalizeServiceType(worker) === "mall";
 
     let filtered = workersList;
     if (filters.serviceType === "mall") {
@@ -227,6 +226,7 @@ const WorkRecords = () => {
               grandTotal: response.grandTotal || 0,
               totalTips: response.totalTips || 0,
               total: response.total || data.length,
+              statusCounts: response.statusCounts || null,
             }
           : null;
 
@@ -278,6 +278,9 @@ const WorkRecords = () => {
                 name: item.name,
                 dailyCounts: item.daily,
                 tips: item.amount || 0, // Backend returns tips in 'amount' field
+                internalCount: item.internalCount || 0,
+                externalCount: item.externalCount || 0,
+                internalExternalCount: item.internalExternalCount || 0,
               };
             }
             return item;
@@ -362,6 +365,7 @@ const WorkRecords = () => {
 
     try {
       let data = viewData;
+      let statusCounts = backendTotals?.statusCounts || null;
       if (!data) {
         const response = await workRecordsService.getStatementData(
           filters.year,
@@ -373,6 +377,7 @@ const WorkRecords = () => {
           isSupervisor && !filters.workerId ? teamWorkerIds : null,
         );
         data = response?.data || (Array.isArray(response) ? response : []);
+        statusCounts = response?.statusCounts || statusCounts;
       }
 
       if (!data || data.length === 0) {
@@ -383,6 +388,8 @@ const WorkRecords = () => {
 
       const isCarFormat =
         data[0]?.parkingNo !== undefined || data[0]?.carNumber !== undefined;
+      const isMallWorkerFormat =
+        !isCarFormat && String(filters.serviceType).toLowerCase() === "mall";
 
       const currentSize = selectedSize || pdfPageSize;
       const [format, orientation] = currentSize.split("-");
@@ -460,15 +467,42 @@ const WorkRecords = () => {
           ];
         });
       } else {
-        tableHead = [
-          ["Sl.No", "Name", ...daysHeader, "Total", "Tips"],
-          ["", "", ...dayNames, "", ""],
-        ];
+        tableHead = isMallWorkerFormat
+          ? [
+              [
+                "Sl.No",
+                "Name",
+                ...daysHeader,
+                "Internal",
+                "External",
+                "Int+Ext",
+                "Total",
+                "Tips",
+              ],
+              ["", "", ...dayNames, "", "", "", "", ""],
+            ]
+          : [
+              ["Sl.No", "Name", ...daysHeader, "Total", "Tips"],
+              ["", "", ...dayNames, "", ""],
+            ];
 
         tableBody = data.map((worker, index) => {
           const counts = worker.dailyCounts || Array(daysInMonth).fill(0);
           const total = counts.reduce((sum, c) => sum + c, 0);
           const tips = worker.tips || 0;
+          if (isMallWorkerFormat) {
+            return [
+              worker.slNo || index + 1,
+              worker.name || "-",
+              ...counts.map((count) => (count > 0 ? count.toString() : "")),
+              worker.internalCount || 0,
+              worker.externalCount || 0,
+              worker.internalExternalCount || 0,
+              total,
+              tips,
+            ];
+          }
+
           return [
             worker.slNo || index + 1,
             worker.name || "-",
@@ -482,27 +516,61 @@ const WorkRecords = () => {
         const dailyTotals = Array(daysInMonth).fill(0);
         let grandTotal = 0;
         let totalTips = 0;
+        let totalInternalCount = 0;
+        let totalExternalCount = 0;
+        let totalInternalExternalCount = 0;
 
         data.forEach((worker) => {
           const counts = worker.dailyCounts || Array(daysInMonth).fill(0);
           counts.forEach((count, i) => (dailyTotals[i] += count));
           grandTotal += counts.reduce((sum, c) => sum + c, 0);
           totalTips += worker.tips || 0;
+          totalInternalCount += worker.internalCount || 0;
+          totalExternalCount += worker.externalCount || 0;
+          totalInternalExternalCount += worker.internalExternalCount || 0;
         });
 
-        tableBody.push([
-          {
-            content: "TOTAL",
-            colSpan: 2,
-            styles: { halign: "center", fontStyle: "bold" },
-          },
-          ...dailyTotals.map((t) => ({
-            content: t.toString(),
-            styles: { fontStyle: "bold" },
-          })),
-          { content: grandTotal.toString(), styles: { fontStyle: "bold" } },
-          { content: totalTips.toString(), styles: { fontStyle: "bold" } },
-        ]);
+        if (isMallWorkerFormat) {
+          tableBody.push([
+            {
+              content: "TOTAL",
+              colSpan: 2,
+              styles: { halign: "center", fontStyle: "bold" },
+            },
+            ...dailyTotals.map((t) => ({
+              content: t.toString(),
+              styles: { fontStyle: "bold" },
+            })),
+            {
+              content: totalInternalCount.toString(),
+              styles: { fontStyle: "bold" },
+            },
+            {
+              content: totalExternalCount.toString(),
+              styles: { fontStyle: "bold" },
+            },
+            {
+              content: totalInternalExternalCount.toString(),
+              styles: { fontStyle: "bold" },
+            },
+            { content: grandTotal.toString(), styles: { fontStyle: "bold" } },
+            { content: totalTips.toString(), styles: { fontStyle: "bold" } },
+          ]);
+        } else {
+          tableBody.push([
+            {
+              content: "TOTAL",
+              colSpan: 2,
+              styles: { halign: "center", fontStyle: "bold" },
+            },
+            ...dailyTotals.map((t) => ({
+              content: t.toString(),
+              styles: { fontStyle: "bold" },
+            })),
+            { content: grandTotal.toString(), styles: { fontStyle: "bold" } },
+            { content: totalTips.toString(), styles: { fontStyle: "bold" } },
+          ]);
+        }
       }
 
       // --- DYNAMIC WIDTH CALCULATION (Fits content to page width) ---
@@ -557,11 +625,14 @@ const WorkRecords = () => {
         columnStyles[6 + daysInMonth] = { cellWidth: tipsWidth };
       } else {
         const slNoWidth = 8;
-        const nameWidth = format === "a5" ? 25 : 35;
-        const totalWidth = 10;
-        const tipsWidth = 10;
+        const nameWidth = format === "a5" ? 24 : 32;
+        const typeCountWidth = format === "a5" ? 9 : 11;
+        const totalWidth = format === "a5" ? 9 : 11;
+        const tipsWidth = format === "a5" ? 9 : 11;
 
-        const fixedWidth = slNoWidth + nameWidth + totalWidth + tipsWidth;
+        const fixedWidth = isMallWorkerFormat
+          ? slNoWidth + nameWidth + typeCountWidth * 3 + totalWidth + tipsWidth
+          : slNoWidth + nameWidth + totalWidth + tipsWidth;
         const remainingWidth = availableWidth - fixedWidth;
         const dayColWidth = remainingWidth / daysInMonth;
 
@@ -572,8 +643,16 @@ const WorkRecords = () => {
           columnStyles[2 + i] = { cellWidth: dayColWidth };
         }
 
-        columnStyles[2 + daysInMonth] = { cellWidth: totalWidth };
-        columnStyles[3 + daysInMonth] = { cellWidth: tipsWidth };
+        if (isMallWorkerFormat) {
+          columnStyles[2 + daysInMonth] = { cellWidth: typeCountWidth };
+          columnStyles[3 + daysInMonth] = { cellWidth: typeCountWidth };
+          columnStyles[4 + daysInMonth] = { cellWidth: typeCountWidth };
+          columnStyles[5 + daysInMonth] = { cellWidth: totalWidth };
+          columnStyles[6 + daysInMonth] = { cellWidth: tipsWidth };
+        } else {
+          columnStyles[2 + daysInMonth] = { cellWidth: totalWidth };
+          columnStyles[3 + daysInMonth] = { cellWidth: tipsWidth };
+        }
       }
 
       autoTable(doc, {
@@ -603,6 +682,17 @@ const WorkRecords = () => {
         margin: { left: 10, right: 10 },
       });
 
+      if (statusCounts) {
+        const finalY = doc.lastAutoTable?.finalY || 58;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text(
+          `Status Summary: Total Washes ${statusCounts.total || 0} | Completed ${statusCounts.completed || 0} | Pending ${statusCounts.pending || 0} | Rejected ${statusCounts.rejected || 0}`,
+          10,
+          finalY + 8,
+        );
+      }
+
       doc.save(
         `Work_Records_${filters.serviceType}_${monthName}_${filters.year}.pdf`,
       );
@@ -625,11 +715,15 @@ const WorkRecords = () => {
     const isCarFormat =
       viewData[0]?.parkingNo !== undefined ||
       viewData[0]?.carNumber !== undefined;
+    const isMallWorkerFormat =
+      !isCarFormat && String(filters.serviceType).toLowerCase() === "mall";
 
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
     const currentItems = viewData.slice(indexOfFirstItem, indexOfLastItem);
     const totalPages = Math.ceil(viewData.length / itemsPerPage);
+    const shouldShowFinalSummary =
+      currentPage === totalPages || totalPages === 0;
 
     return (
       <div className="mt-8 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
@@ -711,6 +805,19 @@ const WorkRecords = () => {
                           </th>
                         );
                       })}
+                      {isMallWorkerFormat && (
+                        <>
+                          <th className="border border-slate-300 p-1">
+                            Internal
+                          </th>
+                          <th className="border border-slate-300 p-1">
+                            External
+                          </th>
+                          <th className="border border-slate-300 p-1">
+                            Int+Ext
+                          </th>
+                        </>
+                      )}
                       <th className="border border-slate-300 p-1">Total</th>
                       <th className="border border-slate-300 p-1">Tips</th>
                     </>
@@ -784,7 +891,7 @@ const WorkRecords = () => {
                         );
                       })}
                       <th
-                        colSpan="2"
+                        colSpan={isMallWorkerFormat ? "5" : "2"}
                         className="border border-slate-300 p-1"
                       ></th>
                     </>
@@ -915,6 +1022,10 @@ const WorkRecords = () => {
                         worker.dailyCounts || Array(daysInMonth).fill(0);
                       const total = counts.reduce((sum, c) => sum + c, 0);
                       const tips = worker.tips || 0;
+                      const internalCount = worker.internalCount || 0;
+                      const externalCount = worker.externalCount || 0;
+                      const internalExternalCount =
+                        worker.internalExternalCount || 0;
                       return (
                         <tr key={globalIndex} className="hover:bg-slate-50">
                           <td className="border border-slate-300 p-2 text-center font-semibold sticky left-0 bg-white">
@@ -941,6 +1052,19 @@ const WorkRecords = () => {
                                 </td>
                               );
                             },
+                          )}
+                          {isMallWorkerFormat && (
+                            <>
+                              <td className="border border-slate-300 p-1 text-center font-semibold text-indigo-600">
+                                {internalCount}
+                              </td>
+                              <td className="border border-slate-300 p-1 text-center font-semibold text-indigo-600">
+                                {externalCount}
+                              </td>
+                              <td className="border border-slate-300 p-1 text-center font-semibold text-indigo-600">
+                                {internalExternalCount}
+                              </td>
+                            </>
                           )}
                           <td className="border border-slate-300 p-1 text-center font-bold text-blue-600">
                             {total}
@@ -1047,6 +1171,28 @@ const WorkRecords = () => {
                           </td>
                         );
                       })}
+                      {isMallWorkerFormat && (
+                        <>
+                          <td className="border border-slate-300 p-1 text-center text-indigo-700">
+                            {viewData.reduce(
+                              (sum, w) => sum + (w.internalCount || 0),
+                              0,
+                            )}
+                          </td>
+                          <td className="border border-slate-300 p-1 text-center text-indigo-700">
+                            {viewData.reduce(
+                              (sum, w) => sum + (w.externalCount || 0),
+                              0,
+                            )}
+                          </td>
+                          <td className="border border-slate-300 p-1 text-center text-indigo-700">
+                            {viewData.reduce(
+                              (sum, w) => sum + (w.internalExternalCount || 0),
+                              0,
+                            )}
+                          </td>
+                        </>
+                      )}
                       <td className="border border-slate-300 p-1 text-center text-blue-600">
                         {backendTotals?.grandTotal ??
                           viewData.reduce(
@@ -1066,6 +1212,17 @@ const WorkRecords = () => {
               )}
             </table>
           </div>
+
+          {shouldShowFinalSummary && backendTotals?.statusCounts && (
+            <div className="mt-3 p-3 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 flex flex-wrap gap-4">
+              <span>Total Washes: {backendTotals.statusCounts.total || 0}</span>
+              <span>
+                Completed: {backendTotals.statusCounts.completed || 0}
+              </span>
+              <span>Pending: {backendTotals.statusCounts.pending || 0}</span>
+              <span>Rejected: {backendTotals.statusCounts.rejected || 0}</span>
+            </div>
+          )}
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
