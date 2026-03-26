@@ -52,6 +52,7 @@ const Attendance = () => {
   const [selectedMall, setSelectedMall] = useState("");
   const [selectedSite, setSelectedSite] = useState("");
   const [selectedBuilding, setSelectedBuilding] = useState("");
+  const [selectedCompanyExport, setSelectedCompanyExport] = useState("");
 
   // Search (Local)
   const [searchTerm, setSearchTerm] = useState("");
@@ -378,6 +379,7 @@ const Attendance = () => {
         endDate: shiftRange.endDate,
         premise: activePremise !== "all" ? activePremise : undefined,
         worker: selectedEmployee || undefined,
+        companyName: selectedCompanyExport || undefined,
       };
 
       if (activePremise === "mall" && selectedMall)
@@ -437,6 +439,21 @@ const Attendance = () => {
     ],
     [buildings],
   );
+
+  const companyExportOptions = useMemo(() => {
+    const names = Array.from(
+      new Set(
+        employees
+          .map((emp) => String(emp.companyName || "").trim())
+          .filter((name) => name.length > 0),
+      ),
+    ).sort((a, b) => a.localeCompare(b));
+
+    return [
+      { value: "", label: "All Companies" },
+      ...names.map((name) => ({ value: name, label: name })),
+    ];
+  }, [employees]);
 
   // --- COLUMNS ---
   const columns = [
@@ -589,48 +606,73 @@ const Attendance = () => {
           <div className="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
             <Users className="w-3.5 h-3.5 text-indigo-500" />
             <span>
-              Total: <b className="text-slate-800">{attendanceSummary.overall.total}</b>
+              Total:{" "}
+              <b className="text-slate-800">
+                {attendanceSummary.overall.total}
+              </b>
             </span>
           </div>
           <div className="bg-white px-3 py-2 rounded-lg border border-emerald-200 shadow-sm flex items-center gap-2">
             <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
             <span>
-              Present: <b className="text-emerald-700">{attendanceSummary.overall.present}</b>
+              Present:{" "}
+              <b className="text-emerald-700">
+                {attendanceSummary.overall.present}
+              </b>
             </span>
           </div>
           <div className="bg-white px-3 py-2 rounded-lg border border-red-200 shadow-sm flex items-center gap-2">
             <X className="w-3.5 h-3.5 text-red-500" />
             <span>
-              Absent: <b className="text-red-700">{attendanceSummary.overall.absent}</b>
+              Absent:{" "}
+              <b className="text-red-700">{attendanceSummary.overall.absent}</b>
             </span>
           </div>
           <div className="bg-white px-3 py-2 rounded-lg border border-green-200 shadow-sm flex items-center gap-2">
             <Calendar className="w-3.5 h-3.5 text-green-600" />
             <span>
-              Week Off: <b className="text-green-700">{attendanceSummary.overall.weekoff}</b>
+              Week Off:{" "}
+              <b className="text-green-700">
+                {attendanceSummary.overall.weekoff}
+              </b>
             </span>
           </div>
           <div className="bg-white px-3 py-2 rounded-lg border border-orange-200 shadow-sm flex items-center gap-2">
             <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
             <span>
-              Sick: <b className="text-orange-700">{attendanceSummary.overall.sick}</b>
+              Sick:{" "}
+              <b className="text-orange-700">
+                {attendanceSummary.overall.sick}
+              </b>
             </span>
           </div>
           <div className="bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
             <span>
-              ND: <b className="text-slate-700">{attendanceSummary.overall.noDuty}</b>
+              ND:{" "}
+              <b className="text-slate-700">
+                {attendanceSummary.overall.noDuty}
+              </b>
             </span>
             <span className="text-slate-300">|</span>
             <span>
-              EL: <b className="text-slate-700">{attendanceSummary.overall.emergencyLeave}</b>
+              EL:{" "}
+              <b className="text-slate-700">
+                {attendanceSummary.overall.emergencyLeave}
+              </b>
             </span>
             <span className="text-slate-300">|</span>
             <span>
-              PL: <b className="text-slate-700">{attendanceSummary.overall.paidLeave}</b>
+              PL:{" "}
+              <b className="text-slate-700">
+                {attendanceSummary.overall.paidLeave}
+              </b>
             </span>
             <span className="text-slate-300">|</span>
             <span>
-              UL: <b className="text-slate-700">{attendanceSummary.overall.unpaidLeave}</b>
+              UL:{" "}
+              <b className="text-slate-700">
+                {attendanceSummary.overall.unpaidLeave}
+              </b>
             </span>
           </div>
         </div>
@@ -648,7 +690,10 @@ const Attendance = () => {
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <Building className="w-4 h-4 text-indigo-500" />
-                    <p className="text-sm font-bold text-slate-800 truncate" title={company.company}>
+                    <p
+                      className="text-sm font-bold text-slate-800 truncate"
+                      title={company.company}
+                    >
                       {company.company}
                     </p>
                   </div>
@@ -725,13 +770,30 @@ const Attendance = () => {
               </div>
             </div>
             {pp.isToolbarVisible("export") && (
-              <button
-                onClick={handleExport}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95"
-              >
-                <Download className="w-4 h-4 text-emerald-600" />
-                <span>Export Excel</span>
-              </button>
+              <div className="w-full xl:w-auto flex flex-col gap-1.5">
+                <span className="text-xs font-bold text-slate-500 uppercase ml-1">
+                  Company (Export)
+                </span>
+                <div className="flex items-center gap-2">
+                  <div className="min-w-[220px]">
+                    <CustomDropdown
+                      value={selectedCompanyExport}
+                      onChange={setSelectedCompanyExport}
+                      options={companyExportOptions}
+                      icon={Building}
+                      placeholder="All Companies"
+                      searchable={true}
+                    />
+                  </div>
+                  <button
+                    onClick={handleExport}
+                    className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95"
+                  >
+                    <Download className="w-4 h-4 text-emerald-600" />
+                    <span>Export Excel</span>
+                  </button>
+                </div>
+              </div>
             )}
 
             <div className="w-full xl:w-auto">

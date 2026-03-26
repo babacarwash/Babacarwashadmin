@@ -25,6 +25,7 @@ const WorkerHistory = () => {
   const [loading, setLoading] = useState(true);
   const [history, setHistory] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusHistory, setStatusHistory] = useState([]);
 
   // --- Date Helpers ---
   const getDateString = (dateObj) => {
@@ -84,6 +85,7 @@ const WorkerHistory = () => {
 
       let records = response.data || [];
       const total = response.total || records.length;
+      setStatusHistory(response.workerInfo?.statusHistory || []);
 
       // --- FIX: STRICT DATE SORTING ---
       // We explicitly sort by assignedDate (Scheduled Date) first, fallback to createdAt.
@@ -137,6 +139,16 @@ const WorkerHistory = () => {
       day: "numeric",
     });
   };
+
+  const formatStatusEvent = (event) => {
+    if (event === "deactivated") return "Deactivated";
+    if (event === "reactivated") return "Reactivated";
+    return event || "-";
+  };
+
+  const sortedStatusHistory = [...statusHistory].sort(
+    (a, b) => new Date(b.changedAt || 0) - new Date(a.changedAt || 0),
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 font-sans">
@@ -206,6 +218,40 @@ const WorkerHistory = () => {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4">
+        <h3 className="text-sm font-bold text-gray-700 uppercase mb-3">
+          Worker Status History
+        </h3>
+        {sortedStatusHistory.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            No worker status history found.
+          </p>
+        ) : (
+          <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+            {sortedStatusHistory.map((entry, index) => (
+              <div
+                key={`worker-status-${index}`}
+                className="border border-gray-200 rounded-md p-3 bg-gray-50"
+              >
+                <div className="text-sm font-semibold text-gray-700">
+                  {formatStatusEvent(entry.event)}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {entry.changedAt
+                    ? new Date(entry.changedAt).toLocaleString()
+                    : "-"}
+                </div>
+                {entry.reason && (
+                  <div className="text-xs text-rose-600 mt-1">
+                    Reason: {entry.reason}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Blue Header Stats & Pagination Info */}

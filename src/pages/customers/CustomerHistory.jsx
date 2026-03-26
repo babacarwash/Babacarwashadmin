@@ -36,6 +36,8 @@ const CustomerHistory = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [customerInfo, setCustomerInfo] = useState(null);
+  const [customerStatusHistory, setCustomerStatusHistory] = useState([]);
+  const [vehicleStatusHistory, setVehicleStatusHistory] = useState([]);
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -88,6 +90,19 @@ const CustomerHistory = () => {
 
       setData(res.data || []);
       setCustomerInfo(res.customerInfo || null);
+      setCustomerStatusHistory(res.customerInfo?.statusHistory || []);
+
+      const flattenedVehicleHistory = (
+        res.customerInfo?.vehicles || []
+      ).flatMap((vehicle) =>
+        (vehicle.statusHistory || []).map((entry) => ({
+          ...entry,
+          vehicleLabel:
+            `${vehicle.registration_no || "-"} / ${vehicle.parking_no || "-"}`.trim(),
+        })),
+      );
+      setVehicleStatusHistory(flattenedVehicleHistory);
+
       setPagination({
         page: Number(page),
         limit: Number(limit),
@@ -355,7 +370,7 @@ const CustomerHistory = () => {
           11: { halign: "center", cellWidth: 20 },
         },
         margin: { left: 8, right: 8 },
-        didDrawPage: (data) => {
+        didDrawPage: () => {
           // Footer on each page
           doc.setFontSize(8);
           doc.setTextColor(128);
@@ -588,6 +603,25 @@ const CustomerHistory = () => {
     },
   ];
 
+  const formatStatusEvent = (event) => {
+    if (event === "deactivated") return "Deactivated";
+    if (event === "reactivated") return "Reactivated";
+    return event || "-";
+  };
+
+  const formatDateTime = (value) => {
+    if (!value) return "-";
+    return new Date(value).toLocaleString();
+  };
+
+  const sortedCustomerStatusHistory = [...customerStatusHistory].sort(
+    (a, b) => new Date(b.changedAt || 0) - new Date(a.changedAt || 0),
+  );
+
+  const sortedVehicleStatusHistory = [...vehicleStatusHistory].sort(
+    (a, b) => new Date(b.changedAt || 0) - new Date(a.changedAt || 0),
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6 font-sans">
       {/* Customer Info Header */}
@@ -613,6 +647,81 @@ const CustomerHistory = () => {
           </div>
         </div>
       )}
+
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 mb-6">
+        <h3 className="text-lg font-bold text-slate-800 mb-4">
+          Status History
+        </h3>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div>
+            <h4 className="text-sm font-semibold text-slate-600 mb-3 uppercase">
+              Customer Status Changes
+            </h4>
+            {sortedCustomerStatusHistory.length === 0 ? (
+              <p className="text-sm text-slate-400">
+                No customer status history found.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                {sortedCustomerStatusHistory.map((entry, index) => (
+                  <div
+                    key={`customer-status-${index}`}
+                    className="rounded-xl border border-slate-200 p-3 bg-slate-50"
+                  >
+                    <div className="text-sm font-semibold text-slate-700">
+                      {formatStatusEvent(entry.event)}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {formatDateTime(entry.changedAt)}
+                    </div>
+                    {entry.reason && (
+                      <div className="text-xs text-rose-600 mt-1">
+                        Reason: {entry.reason}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <h4 className="text-sm font-semibold text-slate-600 mb-3 uppercase">
+              Vehicle Status Changes
+            </h4>
+            {sortedVehicleStatusHistory.length === 0 ? (
+              <p className="text-sm text-slate-400">
+                No vehicle status history found.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                {sortedVehicleStatusHistory.map((entry, index) => (
+                  <div
+                    key={`vehicle-status-${index}`}
+                    className="rounded-xl border border-slate-200 p-3 bg-slate-50"
+                  >
+                    <div className="text-sm font-semibold text-slate-700">
+                      {entry.vehicleLabel}
+                    </div>
+                    <div className="text-xs text-slate-600 mt-1">
+                      {formatStatusEvent(entry.event)}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {formatDateTime(entry.changedAt)}
+                    </div>
+                    {entry.reason && (
+                      <div className="text-xs text-rose-600 mt-1">
+                        Reason: {entry.reason}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* HEADER SECTION */}
       <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 mb-6">

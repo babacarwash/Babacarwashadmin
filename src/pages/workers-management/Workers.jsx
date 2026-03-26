@@ -29,6 +29,8 @@ import {
   UserCheck, // ✅ Office Staff icon
   Shield, // ✅ Supervisor icon
   Activity,
+  X,
+  AlertTriangle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import * as XLSX from "xlsx";
@@ -76,6 +78,13 @@ const Workers = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [workerToDelete, setWorkerToDelete] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deactivationModal, setDeactivationModal] = useState({
+    isOpen: false,
+    worker: null,
+    reason: "",
+    deactivateDate: new Date().toISOString().split("T")[0],
+  });
+  const [statusLoading, setStatusLoading] = useState(false);
 
   const [pagination, setPagination] = useState({
     page: 1,
@@ -266,10 +275,7 @@ const Workers = () => {
       }
       return true;
     });
-  }, [
-    data,
-    selectedExpiryRange,
-  ]);
+  }, [data, selectedExpiryRange]);
 
   const criticalAlerts = useMemo(() => {
     return data.filter((item) => {
@@ -379,14 +385,69 @@ const Workers = () => {
   };
 
   const toggleStatus = async (worker) => {
+    if (worker.status === 1) {
+      setDeactivationModal({
+        isOpen: true,
+        worker,
+        reason: "",
+        deactivateDate: new Date().toISOString().split("T")[0],
+      });
+      return;
+    }
+
     try {
-      const newStatus = worker.status === 1 ? 2 : 1;
-      await workerService.update(worker._id, { status: newStatus });
-      toast.success(`Worker ${newStatus === 1 ? "Activated" : "Deactivated"}`);
+      setStatusLoading(true);
+      await workerService.update(worker._id, {
+        status: 1,
+        deactivateReason: "",
+        reactivateDate: new Date().toISOString(),
+      });
+      toast.success("Worker Activated");
       const status = activeTab === "active" ? 1 : 2;
       fetchData(pagination.page, pagination.limit, currentSearch, status);
     } catch {
       toast.error("Status update failed");
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  const closeDeactivationModal = () => {
+    if (statusLoading) return;
+    setDeactivationModal({
+      isOpen: false,
+      worker: null,
+      reason: "",
+      deactivateDate: new Date().toISOString().split("T")[0],
+    });
+  };
+
+  const confirmDeactivation = async () => {
+    if (!deactivationModal.worker) return;
+
+    const reason = deactivationModal.reason.trim();
+    if (!reason) {
+      toast.error("Please provide a deactivation reason");
+      return;
+    }
+
+    try {
+      setStatusLoading(true);
+      await workerService.update(deactivationModal.worker._id, {
+        status: 2,
+        deactivateReason: reason,
+        deactivateDate: new Date(
+          deactivationModal.deactivateDate,
+        ).toISOString(),
+      });
+      toast.success("Worker Deactivated");
+      closeDeactivationModal();
+      const status = activeTab === "active" ? 1 : 2;
+      fetchData(pagination.page, pagination.limit, currentSearch, status);
+    } catch {
+      toast.error("Status update failed");
+    } finally {
+      setStatusLoading(false);
     }
   };
 
@@ -941,6 +1002,93 @@ const Workers = () => {
         title="Delete Worker"
         message={`Are you sure you want to delete "${workerToDelete?.name}"?`}
       />
+
+      {deactivationModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl mx-4">
+            <button
+              onClick={closeDeactivationModal}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 transition-colors"
+              disabled={statusLoading}
+            >
+              <X size={20} />
+            </button>
+
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
+                <AlertTriangle className="text-amber-700" size={18} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800">
+                  Deactivate Worker
+                </h3>
+                <p className="text-sm text-slate-600">
+                  {deactivationModal.worker?.name}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Deactivation Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={deactivationModal.deactivateDate}
+                  onChange={(e) =>
+                    setDeactivationModal((prev) => ({
+                      ...prev,
+                      deactivateDate: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  disabled={statusLoading}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Reason for Deactivation{" "}
+                  <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={deactivationModal.reason}
+                  onChange={(e) =>
+                    setDeactivationModal((prev) => ({
+                      ...prev,
+                      reason: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter reason..."
+                  rows={3}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  disabled={statusLoading}
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={closeDeactivationModal}
+                className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                disabled={statusLoading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeactivation}
+                className="flex-1 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 transition-colors disabled:opacity-70"
+                disabled={statusLoading}
+              >
+                {statusLoading ? "Deactivating..." : "Deactivate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
