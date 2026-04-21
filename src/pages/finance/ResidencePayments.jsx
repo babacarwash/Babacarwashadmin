@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Download,
   Search,
@@ -65,6 +65,7 @@ import { paymentService } from "../../api/paymentService";
 const ResidencePayments = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const pp = usePagePermissions("payments_residence");
 
   const { payments, stats, loading, total } = useSelector(
@@ -168,6 +169,35 @@ const ResidencePayments = () => {
   const [checkingInvoice, setCheckingInvoice] = useState(false);
   const [historyPayment, setHistoryPayment] = useState(null);
 
+  useEffect(() => {
+    if (searchParams.get("ai") !== "1") {
+      return;
+    }
+
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+    const worker = searchParams.get("worker");
+    const customer = searchParams.get("customer");
+    const createdBy = searchParams.get("createdBy");
+    const q = searchParams.get("q");
+
+    setFilters((previous) => ({
+      ...previous,
+      ...(startDate ? { startDate } : {}),
+      ...(endDate ? { endDate } : {}),
+      ...(worker ? { worker } : {}),
+      ...(customer ? { customer } : {}),
+      ...(createdBy ? { createdBy } : {}),
+      onewash: "false",
+    }));
+
+    setSearchTerm(q || "");
+
+    if (startDate || endDate) {
+      setActiveTab("custom");
+    }
+  }, [searchParams]);
+
   // Load Currency & Initial Data
   useEffect(() => {
     const savedCurrency = localStorage.getItem("app_currency");
@@ -206,8 +236,10 @@ const ResidencePayments = () => {
 
   const fetchData = async (page = 1, limit = 100) => {
     try {
-      const isSearching = searchTerm.trim().length > 0;
-      const fetchLimit = isSearching ? 3000 : limit;
+      const normalizedSearch = searchTerm.trim();
+      const isSearching = normalizedSearch.length > 0;
+      const useServerSearch = /\d/.test(normalizedSearch);
+      const fetchLimit = useServerSearch ? limit : isSearching ? 3000 : limit;
 
       // If dates are YYYY-MM-DD (from custom picker), convert to full-day range
       let apiFilters = { ...filters };
@@ -224,7 +256,7 @@ const ResidencePayments = () => {
         fetchResidencePayments({
           page,
           limit: fetchLimit,
-          search: "",
+            search: useServerSearch ? normalizedSearch : "",
           filters: apiFilters,
         }),
       ).unwrap();
@@ -244,6 +276,10 @@ const ResidencePayments = () => {
   const filteredPayments = payments.filter((row) => {
     if (!searchTerm) return true;
     const lowerTerm = searchTerm.toLowerCase().trim();
+
+    if (/\d/.test(lowerTerm)) {
+      return true;
+    }
 
     const id = String(row.id || row._id || "").toLowerCase();
     const vehicleReg = row.vehicle?.registration_no?.toLowerCase() || "";

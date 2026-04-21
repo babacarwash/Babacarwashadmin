@@ -94,7 +94,7 @@ import AdminStaff from "./pages/admin-staff/AdminStaff";
 import StaffPermissions from "./pages/admin-staff/StaffPermissions";
 import AccessRequests from "./pages/admin-staff/AccessRequests";
 import AdminStaffActivityDetail from "./pages/admin-staff/AdminStaffActivityDetail";
-import AiAssistantPage from "./ai/pages/AiAssistantPage";
+import AiAssistantPage from "./pages/ai/AiAssistantPage";
 
 export const routes = [
   // --- OVERVIEW ---
@@ -106,12 +106,6 @@ export const routes = [
   },
   {
     path: "/ai/assistant",
-    title: "AI Assistant",
-    component: <AiAssistantPage />,
-    icon: Bot,
-  },
-  {
-    path: "/ai/noupe",
     title: "AI Assistant",
     component: <AiAssistantPage />,
     icon: Bot,

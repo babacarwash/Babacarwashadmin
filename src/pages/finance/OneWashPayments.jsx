@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Download,
   Search,
@@ -48,6 +48,7 @@ import { fetchOneWash, deleteOneWash } from "../../redux/slices/oneWashSlice";
 const OneWashPayments = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const pp = usePagePermissions("payments_onewash");
 
   // Redux State
@@ -129,6 +130,34 @@ const OneWashPayments = () => {
   const [editAmountPayment, setEditAmountPayment] = useState(null);
 
   useEffect(() => {
+    if (searchParams.get("ai") !== "1") {
+      return;
+    }
+
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+    const worker = searchParams.get("worker");
+    const customer = searchParams.get("customer");
+    const createdBy = searchParams.get("createdBy");
+    const q = searchParams.get("q");
+
+    setFilters((previous) => ({
+      ...previous,
+      ...(startDate ? { startDate } : {}),
+      ...(endDate ? { endDate } : {}),
+      ...(worker ? { worker } : {}),
+      ...(customer ? { customer } : {}),
+      ...(createdBy ? { createdBy } : {}),
+    }));
+
+    setSearchTerm(q || "");
+
+    if (startDate || endDate) {
+      setActiveTab("custom");
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     const savedCurrency = localStorage.getItem("app_currency");
     if (savedCurrency) setCurrency(savedCurrency);
     dispatch(fetchWorkers({ page: 1, limit: 1000, status: 1 }));
@@ -171,14 +200,16 @@ const OneWashPayments = () => {
     try {
       const apiFilters = { ...filters };
 
-      const isSearching = searchTerm.trim().length > 0;
-      const fetchLimit = isSearching ? 3000 : limit;
+      const normalizedSearch = searchTerm.trim();
+      const isSearching = normalizedSearch.length > 0;
+      const useServerSearch = /\d/.test(normalizedSearch);
+      const fetchLimit = useServerSearch ? limit : isSearching ? 3000 : limit;
 
       const result = await dispatch(
         fetchOneWash({
           page,
           limit: fetchLimit,
-          search: "",
+          search: useServerSearch ? normalizedSearch : "",
           filters: apiFilters,
         }),
       ).unwrap();
@@ -198,6 +229,10 @@ const OneWashPayments = () => {
   const filteredPayments = oneWashJobs.filter((row) => {
     if (!searchTerm) return true;
     const lowerTerm = searchTerm.toLowerCase().trim();
+
+    if (/\d/.test(lowerTerm)) {
+      return true;
+    }
 
     // 1. Prepare Fields
     const id = String(row.id || row._id || "").toLowerCase();
