@@ -43,6 +43,7 @@ import Pricing from "./pages/finance/Pricing";
 import Customers from "./pages/customers/Customers";
 import CustomerHistory from "./pages/customers/CustomerHistory";
 import CustomerActivityDetail from "./pages/customers/CustomerActivityDetail";
+import CustomerSOAPage from "./pages/customers/soa/CustomerSOAPage";
 import WorkerActivityDetail from "./pages/workers-management/WorkerActivityDetail";
 import VehicleManagement from "./pages/customers/VehicleManagement";
 import ImportHistory from "./pages/customers/ImportHistory";
@@ -237,6 +238,11 @@ export const routes = [
     path: "/customers/:id/history",
     title: "Customer History",
     component: <CustomerHistory />,
+  },
+  {
+    path: "/customers/:id/soa",
+    title: "Customer SOA",
+    component: <CustomerSOAPage />,
   },
   {
     path: "/customers/:customerId/activity",

@@ -26,7 +26,10 @@ export const customerService = {
   },
 
   deactivateCustomer: async (id, deactivationData) => {
-    const response = await api.put(`/customers/${id}/deactivate`, deactivationData);
+    const response = await api.put(
+      `/customers/${id}/deactivate`,
+      deactivationData,
+    );
     return response.data;
   },
 
@@ -146,6 +149,25 @@ export const customerService = {
     const response = await api.post("/customers/import/list", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
+    return response.data;
+  },
+
+  getSOA: async (id, options = {}) => {
+    const params = {};
+
+    if (options.vehicleId) {
+      params.vehicleId = options.vehicleId;
+    }
+
+    if (options.fromMonth) {
+      params.fromMonth = options.fromMonth;
+    }
+
+    if (options.toMonth) {
+      params.toMonth = options.toMonth;
+    }
+
+    const response = await api.get(`/customers/${id}/soa`, { params });
     return response.data;
   },
 };

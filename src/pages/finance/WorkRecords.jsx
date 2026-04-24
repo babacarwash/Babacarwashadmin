@@ -46,7 +46,7 @@ const getResidenceDueAmount = (car) => {
 };
 
 const getResidenceDueDate = (car) => {
-  return car?.dueDate || car?.duDate || "-";
+  return car?.dueDateDisplay || car?.dueDate || car?.duDate || "-";
 };
 
 const getWashMetrics = ({
@@ -77,7 +77,10 @@ const getWashMetrics = ({
     });
   }
 
-  const totalWashes = totals.reduce((sum, value) => sum + toNumberSafe(value), 0);
+  const totalWashes = totals.reduce(
+    (sum, value) => sum + toNumberSafe(value),
+    0,
+  );
   const dayWiseAverage = safeDays > 0 ? totalWashes / safeDays : 0;
 
   const now = new Date();
@@ -297,7 +300,9 @@ const WorkRecords = () => {
     }
 
     const allAllowedBuildings =
-      isSupervisor && Array.isArray(user?.buildings) && user.buildings.length > 0
+      isSupervisor &&
+      Array.isArray(user?.buildings) &&
+      user.buildings.length > 0
         ? (buildingsList || []).filter((building) =>
             user.buildings
               .map((id) => String(id))
@@ -377,7 +382,9 @@ const WorkRecords = () => {
 
   useEffect(() => {
     if (String(filters.serviceType).toLowerCase() !== "residence") {
-      setFilters((prev) => (prev.buildingId ? { ...prev, buildingId: "" } : prev));
+      setFilters((prev) =>
+        prev.buildingId ? { ...prev, buildingId: "" } : prev,
+      );
     }
   }, [filters.serviceType]);
 
@@ -699,7 +706,8 @@ const WorkRecords = () => {
       const isCarFormat =
         data[0]?.parkingNo !== undefined || data[0]?.carNumber !== undefined;
       const isResidenceCarFormat =
-        isCarFormat && String(filters.serviceType).toLowerCase() === "residence";
+        isCarFormat &&
+        String(filters.serviceType).toLowerCase() === "residence";
       const isMallWorkerFormat =
         !isCarFormat && String(filters.serviceType).toLowerCase() === "mall";
 
@@ -1553,7 +1561,7 @@ const WorkRecords = () => {
                                 0,
                               )
                               .toFixed(2)
-                          : backendTotals?.grandTotal ??
+                          : (backendTotals?.grandTotal ??
                             viewData.reduce((sum, car) => {
                               const monthStart = new Date(
                                 filters.year,
@@ -1572,12 +1580,12 @@ const WorkRecords = () => {
                                   )
                                 : 0;
                               return sum + totalDays;
-                            }, 0)}
+                            }, 0))}
                       </td>
                       <td className="border border-slate-300 p-1 text-center font-bold text-blue-600">
                         {isResidenceCarFormat
                           ? "-"
-                          : backendTotals?.totalTips ??
+                          : (backendTotals?.totalTips ??
                             viewData.reduce((sum, car) => {
                               const monthStart = new Date(
                                 filters.year,
@@ -1588,7 +1596,7 @@ const WorkRecords = () => {
                                 car.endDate &&
                                 new Date(car.endDate) < monthStart;
                               return sum + (isDeactivated ? 0 : car.tips || 0);
-                            }, 0)}
+                            }, 0))}
                       </td>
                     </tr>
                   ) : (

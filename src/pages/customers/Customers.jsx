@@ -8,6 +8,7 @@ import {
   UploadCloud,
   Loader2,
   FileSpreadsheet,
+  FileText,
   Search,
   Users,
   Hash,
@@ -814,6 +815,12 @@ const Customers = () => {
             >
               <Calendar className="w-4 h-4" /> Show History
             </button>
+            <button
+              onClick={() => navigate(`/customers/${c._id}/soa`)}
+              className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-all shadow-sm flex items-center gap-2"
+            >
+              <FileText className="w-4 h-4" /> Show SOA
+            </button>
           </div>
         </div>
 
@@ -952,6 +959,19 @@ const Customers = () => {
                         {workerName}
                       </span>
                     </div>
+
+                    <button
+                      onClick={() => {
+                        if (!vehicle?._id) return;
+                        navigate(
+                          `/customers/${c._id}/soa?vehicleId=${vehicle._id}`,
+                        );
+                      }}
+                      disabled={!vehicle?._id}
+                      className="px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-60 disabled:cursor-not-allowed text-xs font-bold flex items-center gap-1.5"
+                    >
+                      <FileText className="w-3.5 h-3.5" /> Vehicle SOA
+                    </button>
                   </div>
                 </div>
               );
@@ -1219,6 +1239,15 @@ const Customers = () => {
         "text-right sticky right-0 bg-white shadow-[-10px_0_10px_-10px_rgba(0,0,0,0.1)] min-w-[170px]",
       render: (row) => (
         <div className="flex items-center justify-end gap-1.5 pr-2">
+          {pp.isActionVisible("history") && (
+            <button
+              onClick={() => navigate(`/customers/${row.customer._id}/soa`)}
+              className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-100 transition-all shadow-sm hover:shadow-md"
+              title="Statement Of Account (SOA)"
+            >
+              <FileText className="w-3.5 h-3.5" />
+            </button>
+          )}
           {pp.isActionVisible("activity") && (
             <button
               onClick={() =>
