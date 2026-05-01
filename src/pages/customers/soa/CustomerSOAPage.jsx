@@ -33,6 +33,8 @@ const BRAND = {
   logoPath: "/carwash.jpeg",
 };
 
+const COMPLETED_STATUSES = new Set(["COMPLETED", "DONE", "COLLECTED"]);
+
 const HIDDEN_EXPORT_VALUES = new Set([
   "",
   "-",
@@ -317,11 +319,8 @@ const CustomerSOAPage = () => {
       const summary = soaData.summary || {};
       const monthly = soaData.monthly || [];
       const transactions = soaData.transactions || [];
-      const oneWashSummary = soaData.oneWash?.summary || {};
       const oneWashTransactions = soaData.oneWash?.transactions || [];
       const washActivityEntries = soaData.washActivity?.entries || [];
-
-      const agingRows = getAgingBucketRows(summary);
 
       const summaryRows = [
         ["STATEMENT OF ACCOUNT (SOA)"],
@@ -349,28 +348,9 @@ const CustomerSOAPage = () => {
         ["Total Paid", summary.totalPaid || 0],
         ["Total Due", summary.totalDue || 0],
         ["Collection %", Number(summary.collectionPercent || 0).toFixed(1)],
+        ["Residence Washes", summary.washCompletedCount || 0],
+        ["OneWash Washes", summary.oneWashCount || 0],
       );
-
-      summaryRows.push(
-        [],
-        ["OneWash Base", oneWashSummary.totalBaseAmount || 0],
-        ["OneWash Tips", oneWashSummary.totalTips || 0],
-        ["OneWash Billed", oneWashSummary.totalBilled || 0],
-        ["OneWash Paid", oneWashSummary.totalPaid || 0],
-        ["OneWash Due", oneWashSummary.totalDue || 0],
-        [
-          "OneWash Collection %",
-          Number(oneWashSummary.collectionPercent || 0).toFixed(1),
-        ],
-        ["Overall Billed", summary.overallBilled || summary.totalBilled || 0],
-        ["Overall Paid", summary.overallPaid || summary.totalPaid || 0],
-        ["Overall Due", summary.overallDue || summary.totalDue || 0],
-      );
-
-      summaryRows.push([], ["Aging Bucket", "Due Amount", "Months"]);
-      agingRows.forEach((bucket) => {
-        summaryRows.push([bucket.label, bucket.amount, bucket.months]);
-      });
 
       summaryRows.push(
         [],
@@ -378,6 +358,86 @@ const CustomerSOAPage = () => {
         ["Approved By", "________________"],
         ["Signature", "________________"],
       );
+
+      const monthKeysBase = (availableMonths || [])
+        .map((month) => String(month.value || "").trim())
+        .filter(Boolean);
+
+      const fallbackMonths = new Set();
+      monthly.forEach((row) => {
+        if (row?.month) fallbackMonths.add(row.month);
+      });
+      washActivityEntries.forEach((row) => {
+        if (row?.billingMonth) fallbackMonths.add(row.billingMonth);
+      });
+      oneWashTransactions.forEach((row) => {
+        if (row?.billingMonth) fallbackMonths.add(row.billingMonth);
+      });
+
+      const monthKeys = (monthKeysBase.length > 0
+        ? monthKeysBase
+        : Array.from(fallbackMonths)
+      )
+        .filter((key) => {
+          if (soaData?.filters?.fromMonth && key < soaData.filters.fromMonth) {
+            return false;
+          }
+          if (soaData?.filters?.toMonth && key > soaData.filters.toMonth) {
+            return false;
+          }
+          return true;
+        })
+        .sort((a, b) => a.localeCompare(b));
+
+      const paymentByMonth = new Map();
+      monthly.forEach((row) => {
+        if (row?.month) paymentByMonth.set(row.month, row);
+      });
+
+      const paymentMetaByMonth = new Map();
+      transactions.forEach((row) => {
+        if (!row?.billingMonth) return;
+        const meta = paymentMetaByMonth.get(row.billingMonth) || {
+          modes: new Set(),
+          paidDate: "-",
+          latestAt: 0,
+        };
+
+        if (row.paymentMode) {
+          meta.modes.add(String(row.paymentMode).trim());
+        }
+
+        if (Number(row.paidAmount || 0) > 0) {
+          const timestamp = new Date(row.createdAt || 0).getTime();
+          if (timestamp >= meta.latestAt) {
+            meta.latestAt = timestamp;
+            meta.paidDate = row.paymentDate || "-";
+          }
+        }
+
+        paymentMetaByMonth.set(row.billingMonth, meta);
+      });
+
+      const washCountsByMonth = new Map();
+      washActivityEntries.forEach((row) => {
+        const monthKey = row?.billingMonth;
+        if (!monthKey) return;
+        const status = String(row?.status || "").toUpperCase();
+        if (!COMPLETED_STATUSES.has(status)) return;
+
+        const counts = washCountsByMonth.get(monthKey) || {
+          residence: 0,
+          onewash: 0,
+        };
+        const activityType = String(row?.activityType || "").toUpperCase();
+        if (activityType === "ONEWASH") {
+          counts.onewash += 1;
+        } else {
+          counts.residence += 1;
+        }
+
+        washCountsByMonth.set(monthKey, counts);
+      });
 
       const monthlyRows = [
         [
@@ -387,145 +447,39 @@ const CustomerSOAPage = () => {
           "Billed",
           "Paid",
           "Due",
-          "Due Date",
-          "Status",
-          "Collection %",
-        ],
-        ...monthly.map((row) => [
-          cleanTextValue(row.monthLabel),
-          Number(row.openingBalance || 0),
-          Number(row.subscriptionAmount || 0),
-          Number(row.billedAmount || 0),
-          Number(row.paidAmount || 0),
-          Number(row.dueAmount || 0),
-          cleanTextValue(row.dueDateDisplay),
-          cleanTextValue(row.status),
-          Number(row.collectionPercent || 0),
-        ]),
-      ];
-
-      const transactionRows = [
-        [
-          "#",
-          "Month",
-          "Vehicle",
-          "Parking",
-          "Opening",
-          "Subscription",
-          "Billed",
-          "Paid",
-          "Due",
-          "Due Date",
-          "Payment Date",
+          "Paid Date",
           "Mode",
-          "Status",
-          "Receipt",
-          "Notes",
+          "Residence Washes",
+          "OneWash Washes",
         ],
-        ...transactions.map((row) => [
-          row.serialNo,
-          cleanTextValue(row.monthLabel),
-          cleanTextValue(row.registrationNo),
-          cleanTextValue(row.parkingNo),
-          Number(row.openingBalance || 0),
-          Number(row.subscriptionAmount || 0),
-          Number(row.billedAmount || 0),
-          Number(row.paidAmount || 0),
-          Number(row.dueAmount || 0),
-          cleanTextValue(row.dueDateDisplay),
-          cleanTextValue(row.paymentDate),
-          cleanTextValue(row.paymentMode),
-          cleanTextValue(row.status),
-          cleanTextValue(row.receiptNo),
-          cleanTextValue(row.notes),
-        ]),
-      ];
+        ...monthKeys.map((monthKey) => {
+          const monthRow = paymentByMonth.get(monthKey) || {};
+          const meta = paymentMetaByMonth.get(monthKey) || { modes: new Set() };
+          const modes = meta.modes;
+          const paymentMode =
+            modes.size === 0
+              ? ""
+              : modes.size === 1
+                ? Array.from(modes)[0]
+                : "MULTIPLE";
+          const washCounts = washCountsByMonth.get(monthKey) || {
+            residence: 0,
+            onewash: 0,
+          };
 
-      const vehicleRows = [
-        [
-          "Vehicle",
-          "Parking",
-          "Monthly Amount",
-          "Advance",
-          "Schedule Type",
-          "Schedule Days",
-          "Status",
-        ],
-        ...vehicles.map((vehicle) => [
-          cleanTextValue(vehicle.registrationNo),
-          cleanTextValue(vehicle.parkingNo),
-          Number(vehicle.amount || 0),
-          Number(vehicle.advanceAmount || 0),
-          cleanTextValue(vehicle.scheduleType),
-          cleanTextValue(vehicle.scheduleDays),
-          cleanTextValue(vehicle.status),
-        ]),
-      ];
-
-      const oneWashRows = [
-        [
-          "#",
-          "Month",
-          "Vehicle",
-          "Parking",
-          "Base",
-          "Tip",
-          "Billed",
-          "Paid",
-          "Due",
-          "Mode",
-          "Status",
-          "Payment Date",
-          "Receipt",
-        ],
-        ...oneWashTransactions.map((row) => [
-          row.serialNo,
-          cleanTextValue(row.monthLabel),
-          cleanTextValue(row.registrationNo),
-          cleanTextValue(row.parkingNo),
-          Number(row.baseAmount || 0),
-          Number(row.tipAmount || 0),
-          Number(row.billedAmount || 0),
-          Number(row.paidAmount || 0),
-          Number(row.dueAmount || 0),
-          cleanTextValue(row.paymentMode),
-          cleanTextValue(row.status),
-          cleanTextValue(row.paymentDate),
-          cleanTextValue(row.receiptNo),
-        ]),
-      ];
-
-      const washActivityRows = [
-        [
-          "#",
-          "Date",
-          "Month",
-          "Type",
-          "Vehicle",
-          "Parking",
-          "Status",
-          "Worker",
-          "Amount",
-          "Tips",
-          "Schedule ID",
-          "Created Source",
-          "Notes",
-        ],
-        ...washActivityEntries.map((row) => [
-          row.serialNo,
-          cleanTextValue(row.date),
-          cleanTextValue(row.monthLabel),
-          cleanTextValue(row.activityType),
-          cleanTextValue(row.registrationNo),
-          cleanTextValue(row.parkingNo),
-          cleanTextValue(row.status),
-          cleanTextValue(row.workerName),
-          Number(row.amount || 0),
-          Number(row.tipAmount || 0),
-          cleanTextValue(row.scheduleId),
-          cleanTextValue(row.createdSource),
-          cleanTextValue(row.notes),
-        ]),
+          return [
+            getMonthLabel(monthKey),
+            Number(monthRow.openingBalance || 0),
+            Number(monthRow.subscriptionAmount || 0),
+            Number(monthRow.billedAmount || 0),
+            Number(monthRow.paidAmount || 0),
+            Number(monthRow.dueAmount || 0),
+            cleanTextValue(meta.paidDate),
+            cleanTextValue(paymentMode),
+            Number(washCounts.residence || 0),
+            Number(washCounts.onewash || 0),
+          ];
+        }),
       ];
 
       const workbook = XLSX.utils.book_new();
@@ -543,79 +497,12 @@ const CustomerSOAPage = () => {
         { wch: 14 },
         { wch: 18 },
         { wch: 12 },
-        { wch: 12 },
-      ];
-
-      const transactionSheet = XLSX.utils.aoa_to_sheet(transactionRows);
-      transactionSheet["!cols"] = [
-        { wch: 5 },
-        { wch: 12 },
-        { wch: 14 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 14 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 18 },
-        { wch: 14 },
-        { wch: 12 },
-        { wch: 10 },
-        { wch: 12 },
-        { wch: 35 },
-      ];
-
-      const vehiclesSheet = XLSX.utils.aoa_to_sheet(vehicleRows);
-      vehiclesSheet["!cols"] = [
-        { wch: 14 },
-        { wch: 12 },
-        { wch: 14 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 28 },
-        { wch: 10 },
-      ];
-
-      const oneWashSheet = XLSX.utils.aoa_to_sheet(oneWashRows);
-      oneWashSheet["!cols"] = [
-        { wch: 5 },
-        { wch: 12 },
-        { wch: 14 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 10 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 14 },
-        { wch: 12 },
-      ];
-
-      const washActivitySheet = XLSX.utils.aoa_to_sheet(washActivityRows);
-      washActivitySheet["!cols"] = [
-        { wch: 5 },
-        { wch: 14 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 14 },
-        { wch: 12 },
-        { wch: 12 },
         { wch: 16 },
-        { wch: 12 },
-        { wch: 10 },
-        { wch: 12 },
         { wch: 16 },
-        { wch: 30 },
       ];
 
       XLSX.utils.book_append_sheet(workbook, summarySheet, "SOA Summary");
       XLSX.utils.book_append_sheet(workbook, monthlySheet, "Month Wise");
-      XLSX.utils.book_append_sheet(workbook, transactionSheet, "Transactions");
-      XLSX.utils.book_append_sheet(workbook, vehiclesSheet, "Vehicle Master");
-      XLSX.utils.book_append_sheet(workbook, oneWashSheet, "OneWash");
-      XLSX.utils.book_append_sheet(workbook, washActivitySheet, "Wash Activity");
 
       const fileBase = resolveFileBaseName({
         customer,
@@ -645,11 +532,88 @@ const CustomerSOAPage = () => {
       const summary = soaData.summary || {};
       const monthly = soaData.monthly || [];
       const transactions = soaData.transactions || [];
-      const oneWashSummary = soaData.oneWash?.summary || {};
       const oneWashTransactions = soaData.oneWash?.transactions || [];
       const washActivityEntries = soaData.washActivity?.entries || [];
 
-      const agingRows = getAgingBucketRows(summary);
+      const monthKeysBase = (availableMonths || [])
+        .map((month) => String(month.value || "").trim())
+        .filter(Boolean);
+
+      const fallbackMonths = new Set();
+      monthly.forEach((row) => {
+        if (row?.month) fallbackMonths.add(row.month);
+      });
+      washActivityEntries.forEach((row) => {
+        if (row?.billingMonth) fallbackMonths.add(row.billingMonth);
+      });
+      oneWashTransactions.forEach((row) => {
+        if (row?.billingMonth) fallbackMonths.add(row.billingMonth);
+      });
+
+      const monthKeys = (monthKeysBase.length > 0
+        ? monthKeysBase
+        : Array.from(fallbackMonths)
+      )
+        .filter((key) => {
+          if (soaData?.filters?.fromMonth && key < soaData.filters.fromMonth) {
+            return false;
+          }
+          if (soaData?.filters?.toMonth && key > soaData.filters.toMonth) {
+            return false;
+          }
+          return true;
+        })
+        .sort((a, b) => a.localeCompare(b));
+
+      const paymentByMonth = new Map();
+      monthly.forEach((row) => {
+        if (row?.month) paymentByMonth.set(row.month, row);
+      });
+
+      const paymentMetaByMonth = new Map();
+      transactions.forEach((row) => {
+        if (!row?.billingMonth) return;
+        const meta = paymentMetaByMonth.get(row.billingMonth) || {
+          modes: new Set(),
+          paidDate: "-",
+          latestAt: 0,
+        };
+
+        if (row.paymentMode) {
+          meta.modes.add(String(row.paymentMode).trim());
+        }
+
+        if (Number(row.paidAmount || 0) > 0) {
+          const timestamp = new Date(row.createdAt || 0).getTime();
+          if (timestamp >= meta.latestAt) {
+            meta.latestAt = timestamp;
+            meta.paidDate = row.paymentDate || "-";
+          }
+        }
+
+        paymentMetaByMonth.set(row.billingMonth, meta);
+      });
+
+      const washCountsByMonth = new Map();
+      washActivityEntries.forEach((row) => {
+        const monthKey = row?.billingMonth;
+        if (!monthKey) return;
+        const status = String(row?.status || "").toUpperCase();
+        if (!COMPLETED_STATUSES.has(status)) return;
+
+        const counts = washCountsByMonth.get(monthKey) || {
+          residence: 0,
+          onewash: 0,
+        };
+        const activityType = String(row?.activityType || "").toUpperCase();
+        if (activityType === "ONEWASH") {
+          counts.onewash += 1;
+        } else {
+          counts.residence += 1;
+        }
+
+        washCountsByMonth.set(monthKey, counts);
+      });
       const logoDataUrl = await loadImageAsDataURL(BRAND.logoPath);
 
       const doc = new jsPDF("landscape", "mm", "a4");
@@ -723,49 +687,14 @@ const CustomerSOAPage = () => {
             "Collection %",
             `${Number(summary.collectionPercent || 0).toFixed(1)}%`,
           ],
+          [
+            "Residence Washes",
+            String(summary.washCompletedCount || 0),
+            "OneWash Washes",
+            String(summary.oneWashCount || 0),
+          ],
         ],
         headStyles: { fillColor: [30, 64, 175] },
-        styles: { fontSize: 8 },
-      });
-
-      autoTable(doc, {
-        startY: (doc.lastAutoTable?.finalY || 48) + 6,
-        theme: "grid",
-        head: [["OneWash Metric", "Value", "OneWash Metric", "Value"]],
-        body: [
-          [
-            "Base Amount",
-            formatAmount(oneWashSummary.totalBaseAmount),
-            "Tip Amount",
-            formatAmount(oneWashSummary.totalTips),
-          ],
-          [
-            "Billed",
-            formatAmount(oneWashSummary.totalBilled),
-            "Paid",
-            formatAmount(oneWashSummary.totalPaid),
-          ],
-          [
-            "Due",
-            formatAmount(oneWashSummary.totalDue),
-            "Collection %",
-            `${Number(oneWashSummary.collectionPercent || 0).toFixed(1)}%`,
-          ],
-        ],
-        headStyles: { fillColor: [185, 28, 28] },
-        styles: { fontSize: 8 },
-      });
-
-      autoTable(doc, {
-        startY: (doc.lastAutoTable?.finalY || 48) + 6,
-        theme: "grid",
-        head: [["Aging Bucket", "Due Amount", "Months"]],
-        body: agingRows.map((bucket) => [
-          bucket.label,
-          formatAmount(bucket.amount),
-          String(bucket.months || 0),
-        ]),
-        headStyles: { fillColor: [124, 58, 237] },
         styles: { fontSize: 8 },
       });
 
@@ -780,126 +709,47 @@ const CustomerSOAPage = () => {
             "Billed",
             "Paid",
             "Due",
-            "Due Date",
-            "Status",
+            "Paid Date",
+            "Mode",
+            "Residence",
+            "OneWash",
           ],
         ],
         body:
-          monthly.length > 0
-            ? monthly.map((row) => [
-                cleanTextValue(row.monthLabel),
-                formatAmount(row.openingBalance),
-                formatAmount(row.subscriptionAmount),
-                formatAmount(row.billedAmount),
-                formatAmount(row.paidAmount),
-                formatAmount(row.dueAmount),
-                cleanTextValue(row.dueDateDisplay),
-                cleanTextValue(row.status),
-              ])
-            : [["No records", "-", "-", "-", "-", "-", "-", "-"]],
+          monthKeys.length > 0
+            ? monthKeys.map((monthKey) => {
+                const monthRow = paymentByMonth.get(monthKey) || {};
+                const meta = paymentMetaByMonth.get(monthKey) || {
+                  modes: new Set(),
+                  paidDate: "-",
+                };
+                const modes = meta.modes;
+                const paymentMode =
+                  modes.size === 0
+                    ? "-"
+                    : modes.size === 1
+                      ? Array.from(modes)[0]
+                      : "MULTIPLE";
+                const washCounts = washCountsByMonth.get(monthKey) || {
+                  residence: 0,
+                  onewash: 0,
+                };
+
+                return [
+                  getMonthLabel(monthKey),
+                  formatAmount(monthRow.openingBalance),
+                  formatAmount(monthRow.subscriptionAmount),
+                  formatAmount(monthRow.billedAmount),
+                  formatAmount(monthRow.paidAmount),
+                  formatAmount(monthRow.dueAmount),
+                  cleanTextValue(meta.paidDate),
+                  cleanTextValue(paymentMode),
+                  String(washCounts.residence || 0),
+                  String(washCounts.onewash || 0),
+                ];
+              })
+            : [["No records", "-", "-", "-", "-", "-", "-", "-", "-", "-"]],
         headStyles: { fillColor: [15, 118, 110] },
-        styles: { fontSize: 7.5 },
-      });
-
-      autoTable(doc, {
-        startY: (doc.lastAutoTable?.finalY || 48) + 6,
-        theme: "grid",
-        head: [
-          [
-            "#",
-            "Month",
-            "Vehicle",
-            "Billed",
-            "Paid",
-            "Due",
-            "Due Date",
-            "Mode",
-            "Status",
-          ],
-        ],
-        body:
-          transactions.length > 0
-            ? transactions
-                .slice(0, 35)
-                .map((row) => [
-                  row.serialNo,
-                  cleanTextValue(row.monthLabel),
-                  buildVehicleLabel(row.registrationNo, row.parkingNo),
-                  formatAmount(row.billedAmount),
-                  formatAmount(row.paidAmount),
-                  formatAmount(row.dueAmount),
-                  cleanTextValue(row.dueDateDisplay),
-                  cleanTextValue(row.paymentMode),
-                  cleanTextValue(row.status),
-                ])
-            : [["-", "No transactions", "-", "-", "-", "-", "-", "-", "-"]],
-        headStyles: { fillColor: [55, 65, 81] },
-        styles: { fontSize: 7 },
-      });
-
-      autoTable(doc, {
-        startY: (doc.lastAutoTable?.finalY || 48) + 6,
-        theme: "grid",
-        head: [
-          [
-            "#",
-            "Month",
-            "Vehicle",
-            "Base",
-            "Tip",
-            "Billed",
-            "Paid",
-            "Due",
-            "Mode",
-          ],
-        ],
-        body:
-          oneWashTransactions.length > 0
-            ? oneWashTransactions.slice(0, 30).map((row) => [
-                row.serialNo,
-                cleanTextValue(row.monthLabel),
-                buildVehicleLabel(row.registrationNo, row.parkingNo),
-                formatAmount(row.baseAmount),
-                formatAmount(row.tipAmount),
-                formatAmount(row.billedAmount),
-                formatAmount(row.paidAmount),
-                formatAmount(row.dueAmount),
-                cleanTextValue(row.paymentMode),
-              ])
-            : [["-", "No onewash records", "-", "-", "-", "-", "-", "-", "-"]],
-        headStyles: { fillColor: [127, 29, 29] },
-        styles: { fontSize: 7 },
-      });
-
-      autoTable(doc, {
-        startY: (doc.lastAutoTable?.finalY || 48) + 6,
-        theme: "grid",
-        head: [
-          [
-            "#",
-            "Date",
-            "Type",
-            "Vehicle",
-            "Status",
-            "Worker",
-            "Amount",
-            "Tips",
-          ],
-        ],
-        body:
-          washActivityEntries.length > 0
-            ? washActivityEntries.slice(0, 30).map((row) => [
-                row.serialNo,
-                cleanTextValue(row.date),
-                cleanTextValue(row.activityType),
-                buildVehicleLabel(row.registrationNo, row.parkingNo),
-                cleanTextValue(row.status),
-                cleanTextValue(row.workerName),
-                formatAmount(row.amount),
-                formatAmount(row.tipAmount),
-              ])
-            : [["-", "No wash activity", "-", "-", "-", "-", "-", "-"]],
-        headStyles: { fillColor: [30, 58, 138] },
         styles: { fontSize: 7 },
       });
 

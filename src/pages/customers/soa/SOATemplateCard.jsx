@@ -1,14 +1,12 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
-  AlertCircle,
-  BadgeCheck,
   Building2,
   CalendarDays,
   Car,
-  Clock3,
+  Check,
   Phone,
   User,
-  Wallet,
+  X,
 } from "lucide-react";
 
 const moneyFormatter = new Intl.NumberFormat("en-AE", {
@@ -19,6 +17,25 @@ const moneyFormatter = new Intl.NumberFormat("en-AE", {
 const formatAmount = (value) =>
   `AED ${moneyFormatter.format(Number(value || 0))}`;
 
+const COMPLETED_STATUSES = new Set(["COMPLETED", "DONE", "COLLECTED"]);
+
+const dayNameToNumber = {
+  sun: 0,
+  sunday: 0,
+  mon: 1,
+  monday: 1,
+  tue: 2,
+  tuesday: 2,
+  wed: 3,
+  wednesday: 3,
+  thu: 4,
+  thursday: 4,
+  fri: 5,
+  friday: 5,
+  sat: 6,
+  saturday: 6,
+};
+
 const buildVehicleLabel = (registrationNo, parkingNo) => {
   const reg = String(registrationNo || "").trim();
   const parking = String(parkingNo || "").trim();
@@ -26,39 +43,374 @@ const buildVehicleLabel = (registrationNo, parkingNo) => {
   return joined || "-";
 };
 
+const parseDateValue = (value) => {
+  if (!value) return null;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed;
+  }
+
+  const raw = String(value || "").trim();
+  const parts = raw.split("-");
+  if (parts.length === 3) {
+    const [dayText, monthText, yearText] = parts;
+    const day = Number(dayText);
+    const year = Number(yearText);
+    const monthMap = {
+      jan: 0,
+      feb: 1,
+      mar: 2,
+      apr: 3,
+      may: 4,
+      jun: 5,
+      jul: 6,
+      aug: 7,
+      sep: 8,
+      oct: 9,
+      nov: 10,
+      dec: 11,
+    };
+    const month = monthMap[String(monthText || "").toLowerCase()] ?? null;
+    if (Number.isFinite(day) && Number.isFinite(year) && month !== null) {
+      const date = new Date(year, month, day);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+  }
+
+  return null;
+};
+
+const toDateKey = (date) => {
+  if (!date) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeToStartOfDay = (date) => {
+  if (!date) return null;
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
+const parseScheduleDays = (raw) => {
+  const unique = new Set();
+  const addDay = (value) => {
+    const key = String(value || "").trim().toLowerCase();
+    if (!key) return;
+    const mapped = dayNameToNumber[key];
+    if (mapped === 0 || Number.isFinite(mapped)) {
+      unique.add(mapped);
+    }
+  };
+
+  if (Array.isArray(raw)) {
+    raw.forEach((entry) => {
+      if (!entry) return;
+      if (typeof entry === "object") {
+        if (Number.isFinite(Number(entry.value))) {
+          unique.add(Number(entry.value));
+          return;
+        }
+        if (entry.day) {
+          addDay(entry.day);
+        }
+        return;
+      }
+
+      if (typeof entry === "string") {
+        entry
+          .split(/[,\s]+/)
+          .filter(Boolean)
+          .forEach(addDay);
+      }
+    });
+  } else if (typeof raw === "string") {
+    raw
+      .split(/[,\s]+/)
+      .filter(Boolean)
+      .forEach(addDay);
+  } else if (raw && typeof raw === "object" && raw.day) {
+    addDay(raw.day);
+  }
+
+  return Array.from(unique.values()).sort();
+};
+
+const formatMonthLabel = (monthKey) => {
+  if (!monthKey) return "-";
+  const [year, month] = String(monthKey).split("-").map(Number);
+  if (!year || !month) return monthKey;
+  const date = new Date(year, month - 1, 1);
+  return date
+    .toLocaleString("default", { month: "short", year: "numeric" })
+    .toUpperCase();
+};
+
+const getMonthKeyFromDate = (value) => {
+  const date = parseDateValue(value);
+  if (!date) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+};
+
 const SOATemplateCard = ({ soaData }) => {
   const customer = soaData?.customer || {};
   const summary = soaData?.summary || {};
-  const insights = soaData?.insights || {};
   const monthly = soaData?.monthly || [];
   const transactions = soaData?.transactions || [];
-  const oneWashSummary = soaData?.oneWash?.summary || {};
-  const oneWashTransactions = soaData?.oneWash?.transactions || [];
   const washActivityEntries = soaData?.washActivity?.entries || [];
-  const washActivitySummary = soaData?.washActivity?.summary || {};
+  const oneWashTransactions = soaData?.oneWash?.transactions || [];
   const selectedVehicle = soaData?.selectedVehicle;
-  const agingBuckets = [
-    {
-      label: "0-30 Days",
-      amount: Number(summary?.agingBuckets?.bucket_0_30?.amount || 0),
-      months: Number(summary?.agingBuckets?.bucket_0_30?.months || 0),
-    },
-    {
-      label: "31-60 Days",
-      amount: Number(summary?.agingBuckets?.bucket_31_60?.amount || 0),
-      months: Number(summary?.agingBuckets?.bucket_31_60?.months || 0),
-    },
-    {
-      label: "61-90 Days",
-      amount: Number(summary?.agingBuckets?.bucket_61_90?.amount || 0),
-      months: Number(summary?.agingBuckets?.bucket_61_90?.months || 0),
-    },
-    {
-      label: "90+ Days",
-      amount: Number(summary?.agingBuckets?.bucket_90_plus?.amount || 0),
-      months: Number(summary?.agingBuckets?.bucket_90_plus?.months || 0),
-    },
-  ];
+  const vehicles = soaData?.vehicles || [];
+  const availableMonths = Array.isArray(soaData?.availableMonths)
+    ? soaData.availableMonths
+    : [];
+  const fromMonth = soaData?.filters?.fromMonth || "";
+  const toMonth = soaData?.filters?.toMonth || "";
+
+  const monthKeys = useMemo(() => {
+    const available = availableMonths
+      .map((month) => String(month.value || "").trim())
+      .filter(Boolean);
+
+    const fallback = new Set();
+    monthly.forEach((entry) => {
+      if (entry?.month) fallback.add(entry.month);
+    });
+    washActivityEntries.forEach((entry) => {
+      if (entry?.billingMonth) fallback.add(entry.billingMonth);
+    });
+    oneWashTransactions.forEach((entry) => {
+      if (entry?.billingMonth) fallback.add(entry.billingMonth);
+    });
+
+    const base = available.length > 0 ? available : Array.from(fallback);
+
+    return base
+      .filter((key) => {
+        if (fromMonth && key < fromMonth) return false;
+        if (toMonth && key > toMonth) return false;
+        return true;
+      })
+      .sort((a, b) => a.localeCompare(b));
+  }, [availableMonths, monthly, washActivityEntries, oneWashTransactions, fromMonth, toMonth]);
+
+  const monthMeta = useMemo(
+    () =>
+      monthKeys.map((monthKey) => {
+        const [year, month] = String(monthKey).split("-").map(Number);
+        const daysInMonth = year && month ? new Date(year, month, 0).getDate() : 30;
+        return {
+          key: monthKey,
+          label: formatMonthLabel(monthKey),
+          year,
+          month,
+          daysInMonth,
+        };
+      }),
+    [monthKeys],
+  );
+
+  const paymentByMonth = useMemo(() => {
+    const map = new Map();
+    monthly.forEach((entry) => {
+      if (entry?.month) {
+        map.set(entry.month, entry);
+      }
+    });
+    return map;
+  }, [monthly]);
+
+  const paymentMetaByMonth = useMemo(() => {
+    const map = new Map();
+
+    transactions.forEach((entry) => {
+      const monthKey = entry?.billingMonth;
+      if (!monthKey) return;
+
+      const meta = map.get(monthKey) || {
+        modes: new Set(),
+        paidDate: "-",
+        latestAt: 0,
+      };
+
+      if (entry?.paymentMode) {
+        meta.modes.add(String(entry.paymentMode).trim());
+      }
+
+      if (Number(entry?.paidAmount || 0) > 0) {
+        const paidDate = parseDateValue(entry?.paymentDate);
+        const fallbackDate = parseDateValue(entry?.createdAt);
+        const timestamp =
+          (paidDate && paidDate.getTime()) ||
+          (fallbackDate && fallbackDate.getTime()) ||
+          0;
+        if (timestamp >= meta.latestAt) {
+          meta.latestAt = timestamp;
+          meta.paidDate = entry?.paymentDate || "-";
+        }
+      }
+
+      map.set(monthKey, meta);
+    });
+
+    return map;
+  }, [transactions]);
+
+  const washCountsByMonth = useMemo(() => {
+    const map = new Map();
+
+    washActivityEntries.forEach((entry) => {
+      const monthKey = entry?.billingMonth || getMonthKeyFromDate(entry?.assignedDate || entry?.date);
+      if (!monthKey) return;
+
+      const status = String(entry?.status || "").toUpperCase();
+      if (!COMPLETED_STATUSES.has(status)) return;
+
+      const data = map.get(monthKey) || { residence: 0, onewash: 0 };
+      const activityType = String(entry?.activityType || "").toUpperCase();
+
+      if (activityType === "ONEWASH") {
+        data.onewash += 1;
+      } else {
+        data.residence += 1;
+      }
+
+      map.set(monthKey, data);
+    });
+
+    return map;
+  }, [washActivityEntries]);
+
+  const monthlyRows = useMemo(() => {
+    return monthMeta.map((meta) => {
+      const paymentRow = paymentByMonth.get(meta.key) || {
+        openingBalance: 0,
+        subscriptionAmount: 0,
+        billedAmount: 0,
+        paidAmount: 0,
+        dueAmount: 0,
+      };
+
+      const paymentMeta = paymentMetaByMonth.get(meta.key);
+      const modes = paymentMeta?.modes || new Set();
+      const paymentMode =
+        modes.size === 0
+          ? "-"
+          : modes.size === 1
+            ? Array.from(modes)[0]
+            : "MULTIPLE";
+
+      const washCounts = washCountsByMonth.get(meta.key) || {
+        residence: 0,
+        onewash: 0,
+      };
+
+      return {
+        monthKey: meta.key,
+        monthLabel: meta.label,
+        openingBalance: paymentRow.openingBalance || 0,
+        subscriptionAmount: paymentRow.subscriptionAmount || 0,
+        billedAmount: paymentRow.billedAmount || 0,
+        paidAmount: paymentRow.paidAmount || 0,
+        dueAmount: paymentRow.dueAmount || 0,
+        paidDate: paymentMeta?.paidDate || "-",
+        paymentMode,
+        residenceCount: washCounts.residence,
+        onewashCount: washCounts.onewash,
+      };
+    });
+  }, [monthMeta, paymentByMonth, paymentMetaByMonth, washCountsByMonth]);
+
+  const scheduleVehicles = useMemo(() => {
+    if (selectedVehicle) return [selectedVehicle];
+    return vehicles;
+  }, [selectedVehicle, vehicles]);
+
+  const completedDaysByVehicle = useMemo(() => {
+    const map = new Map();
+
+    washActivityEntries.forEach((entry) => {
+      if (String(entry?.activityType || "").toUpperCase() !== "SCHEDULED") {
+        return;
+      }
+
+      const status = String(entry?.status || "").toUpperCase();
+      if (!COMPLETED_STATUSES.has(status)) return;
+
+      const dateValue = parseDateValue(entry?.assignedDate || entry?.date);
+      if (!dateValue) return;
+
+      const key = toDateKey(dateValue);
+      const vehicleId = String(entry?.vehicleId || "").trim();
+      if (!vehicleId) return;
+
+      if (!map.has(vehicleId)) {
+        map.set(vehicleId, new Set());
+      }
+      map.get(vehicleId).add(key);
+    });
+
+    return map;
+  }, [washActivityEntries]);
+
+  const today = normalizeToStartOfDay(new Date());
+
+  const buildScheduleRows = (vehicle) => {
+    const scheduleType = String(vehicle?.scheduleType || "").toLowerCase();
+    const scheduleDays = parseScheduleDays(
+      vehicle?.scheduleDaysRaw || vehicle?.scheduleDays,
+    );
+    const startDate = normalizeToStartOfDay(parseDateValue(vehicle?.startDate || vehicle?.onboardDate));
+    const endDate = normalizeToStartOfDay(parseDateValue(vehicle?.deactivateDate));
+
+    const completedDays =
+      completedDaysByVehicle.get(String(vehicle?.vehicleId || "").trim()) ||
+      new Set();
+
+    return monthMeta.map((meta) => {
+      const days = [];
+      for (let day = 1; day <= meta.daysInMonth; day += 1) {
+        const date = new Date(meta.year, meta.month - 1, day);
+        const dateStart = normalizeToStartOfDay(date);
+        const dateKey = toDateKey(date);
+
+        const isFuture = today && dateStart > today;
+        const isBeforeStart = startDate && dateStart < startDate;
+        const isAfterEnd = endDate && dateStart > endDate;
+
+        let isScheduled = false;
+        if (!isBeforeStart && !isAfterEnd) {
+          if (scheduleType === "daily") {
+            isScheduled = date.getDay() !== 0;
+          } else if (scheduleType === "weekly") {
+            isScheduled = scheduleDays.includes(date.getDay());
+          }
+        }
+
+        if (!isScheduled || isFuture) {
+          days.push("none");
+        } else if (completedDays.has(dateKey)) {
+          days.push("done");
+        } else {
+          days.push("missed");
+        }
+      }
+      return {
+        monthKey: meta.key,
+        label: meta.label,
+        days,
+        daysInMonth: meta.daysInMonth,
+      };
+    });
+  };
 
   return (
     <div
@@ -146,7 +498,7 @@ const SOATemplateCard = ({ soaData }) => {
               <Car className="w-3.5 h-3.5" /> Vehicles
             </p>
             <p className="mt-1 text-slate-800 font-bold">
-              {soaData?.vehicles?.length || 0}
+              {vehicles.length || 0}
             </p>
             <p className="text-xs text-slate-500 mt-0.5">
               Payments: {summary.paymentsCount || 0}
@@ -154,103 +506,71 @@ const SOATemplateCard = ({ soaData }) => {
           </div>
         </div>
 
-        <div className="soa-print-section grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-          <div className="soa-compact-trim rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
-            <p className="text-xs text-blue-700 font-bold uppercase tracking-wide">
-              Total Billed
-            </p>
-            <p className="text-xl font-extrabold text-blue-900 mt-1">
-              {formatAmount(summary.totalBilled)}
-            </p>
+        <div className="soa-print-section rounded-xl border border-slate-200 overflow-hidden">
+          <div className="bg-slate-100 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-600">
+            Payment Summary
           </div>
-          <div className="soa-compact-trim rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-            <p className="text-xs text-emerald-700 font-bold uppercase tracking-wide">
-              Total Paid
-            </p>
-            <p className="text-xl font-extrabold text-emerald-900 mt-1">
-              {formatAmount(summary.totalPaid)}
-            </p>
-          </div>
-          <div className="soa-compact-trim rounded-xl border border-rose-100 bg-rose-50 px-4 py-3">
-            <p className="text-xs text-rose-700 font-bold uppercase tracking-wide">
-              Total Due
-            </p>
-            <p className="text-xl font-extrabold text-rose-900 mt-1">
-              {formatAmount(summary.totalDue)}
-            </p>
-          </div>
-          <div className="soa-compact-trim rounded-xl border border-violet-100 bg-violet-50 px-4 py-3">
-            <p className="text-xs text-violet-700 font-bold uppercase tracking-wide">
-              Collection
-            </p>
-            <p className="text-xl font-extrabold text-violet-900 mt-1">
-              {Number(summary.collectionPercent || 0).toFixed(1)}%
-            </p>
-          </div>
-        </div>
-
-        <div className="soa-print-section grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-          <div className="soa-compact-trim rounded-xl border border-sky-100 bg-sky-50 px-4 py-3">
-            <p className="text-xs text-sky-700 font-bold uppercase tracking-wide">
-              OneWash Base
-            </p>
-            <p className="text-xl font-extrabold text-sky-900 mt-1">
-              {formatAmount(oneWashSummary.totalBaseAmount)}
-            </p>
-          </div>
-          <div className="soa-compact-trim rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
-            <p className="text-xs text-amber-700 font-bold uppercase tracking-wide">
-              OneWash Tips
-            </p>
-            <p className="text-xl font-extrabold text-amber-900 mt-1">
-              {formatAmount(oneWashSummary.totalTips)}
-            </p>
-          </div>
-          <div className="soa-compact-trim rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3">
-            <p className="text-xs text-indigo-700 font-bold uppercase tracking-wide">
-              OneWash Paid
-            </p>
-            <p className="text-xl font-extrabold text-indigo-900 mt-1">
-              {formatAmount(oneWashSummary.totalPaid)}
-            </p>
-          </div>
-          <div className="soa-compact-trim rounded-xl border border-orange-100 bg-orange-50 px-4 py-3">
-            <p className="text-xs text-orange-700 font-bold uppercase tracking-wide">
-              OneWash Due
-            </p>
-            <p className="text-xl font-extrabold text-orange-900 mt-1">
-              {formatAmount(oneWashSummary.totalDue)}
-            </p>
+          <div className="overflow-x-auto">
+            <table className="soa-print-table w-full text-xs">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="text-left px-3 py-2 font-bold">Metric</th>
+                  <th className="text-right px-3 py-2 font-bold">Value</th>
+                  <th className="text-left px-3 py-2 font-bold">Metric</th>
+                  <th className="text-right px-3 py-2 font-bold">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="soa-compact-trim border-t border-slate-100">
+                  <td className="px-3 py-2 text-slate-700 font-semibold">
+                    Total Opening
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-700">
+                    {formatAmount(summary.totalOpeningBalance)}
+                  </td>
+                  <td className="px-3 py-2 text-slate-700 font-semibold">
+                    Total Subscription
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-700">
+                    {formatAmount(summary.totalSubscription)}
+                  </td>
+                </tr>
+                <tr className="soa-compact-trim border-t border-slate-100">
+                  <td className="px-3 py-2 text-slate-700 font-semibold">
+                    Total Billed
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-700">
+                    {formatAmount(summary.totalBilled)}
+                  </td>
+                  <td className="px-3 py-2 text-slate-700 font-semibold">
+                    Total Paid
+                  </td>
+                  <td className="px-3 py-2 text-right text-emerald-700 font-semibold">
+                    {formatAmount(summary.totalPaid)}
+                  </td>
+                </tr>
+                <tr className="soa-compact-trim border-t border-slate-100">
+                  <td className="px-3 py-2 text-slate-700 font-semibold">
+                    Total Due
+                  </td>
+                  <td className="px-3 py-2 text-right text-rose-600 font-semibold">
+                    {formatAmount(summary.totalDue)}
+                  </td>
+                  <td className="px-3 py-2 text-slate-700 font-semibold">
+                    Collection %
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-700">
+                    {Number(summary.collectionPercent || 0).toFixed(1)}%
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
         <div className="soa-print-section rounded-xl border border-slate-200 overflow-hidden">
           <div className="bg-slate-100 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 flex items-center gap-1">
-            <Clock3 className="w-3.5 h-3.5" /> Aging Buckets
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 p-3">
-            {agingBuckets.map((bucket) => (
-              <div
-                key={bucket.label}
-                className="soa-compact-trim rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
-              >
-                <p className="text-xs text-slate-500 font-bold uppercase tracking-wide">
-                  {bucket.label}
-                </p>
-                <p className="text-base font-extrabold text-slate-800 mt-1">
-                  {formatAmount(bucket.amount)}
-                </p>
-                <p className="text-xs text-slate-500 mt-1">
-                  Months: {bucket.months}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="soa-print-section rounded-xl border border-slate-200 overflow-hidden">
-          <div className="bg-slate-100 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 flex items-center gap-1">
-            <CalendarDays className="w-3.5 h-3.5" /> Month Wise Statement
+            <CalendarDays className="w-3.5 h-3.5" /> Monthly Payments + Washes
           </div>
           <div className="overflow-x-auto">
             <table className="soa-print-table w-full text-xs">
@@ -258,166 +578,67 @@ const SOATemplateCard = ({ soaData }) => {
                 <tr>
                   <th className="text-left px-3 py-2 font-bold">Month</th>
                   <th className="text-right px-3 py-2 font-bold">Opening</th>
-                  <th className="text-right px-3 py-2 font-bold">
-                    Subscription
-                  </th>
+                  <th className="text-right px-3 py-2 font-bold">Subscription</th>
                   <th className="text-right px-3 py-2 font-bold">Billed</th>
                   <th className="text-right px-3 py-2 font-bold">Paid</th>
                   <th className="text-right px-3 py-2 font-bold">Due</th>
-                  <th className="text-center px-3 py-2 font-bold">Due Date</th>
-                  <th className="text-center px-3 py-2 font-bold">Status</th>
+                  <th className="text-center px-3 py-2 font-bold">Paid Date</th>
+                  <th className="text-center px-3 py-2 font-bold">Mode</th>
+                  <th className="text-center px-3 py-2 font-bold">Residence</th>
+                  <th className="text-center px-3 py-2 font-bold">OneWash</th>
                 </tr>
               </thead>
               <tbody>
-                {monthly.length === 0 && (
+                {monthlyRows.length === 0 && (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={10}
                       className="px-3 py-5 text-center text-slate-400 italic"
                     >
                       No month-wise records found for selected filters.
                     </td>
                   </tr>
                 )}
-                {monthly.map((monthRow) => (
+                {monthlyRows.map((row) => (
                   <tr
-                    key={monthRow.month}
+                    key={row.monthKey}
                     className="soa-compact-trim border-t border-slate-100"
                   >
                     <td className="px-3 py-2 font-semibold text-slate-700">
-                      {monthRow.monthLabel}
+                      {row.monthLabel}
                     </td>
                     <td className="px-3 py-2 text-right text-slate-600">
-                      {formatAmount(monthRow.openingBalance)}
+                      {formatAmount(row.openingBalance)}
                     </td>
                     <td className="px-3 py-2 text-right text-slate-600">
-                      {formatAmount(monthRow.subscriptionAmount)}
+                      {formatAmount(row.subscriptionAmount)}
                     </td>
                     <td className="px-3 py-2 text-right font-semibold text-slate-700">
-                      {formatAmount(monthRow.billedAmount)}
+                      {formatAmount(row.billedAmount)}
                     </td>
                     <td className="px-3 py-2 text-right font-semibold text-emerald-700">
-                      {formatAmount(monthRow.paidAmount)}
+                      {formatAmount(row.paidAmount)}
                     </td>
                     <td
                       className={`px-3 py-2 text-right font-bold ${
-                        Number(monthRow.dueAmount || 0) > 0
+                        Number(row.dueAmount || 0) > 0
                           ? "text-rose-600"
                           : "text-slate-600"
                       }`}
                     >
-                      {formatAmount(monthRow.dueAmount)}
+                      {formatAmount(row.dueAmount)}
                     </td>
                     <td className="px-3 py-2 text-center text-slate-600">
-                      {monthRow.dueDateDisplay || "-"}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                          monthRow.status === "PAID"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-rose-100 text-rose-700"
-                        }`}
-                      >
-                        {monthRow.status === "PAID" ? (
-                          <BadgeCheck className="w-3 h-3" />
-                        ) : (
-                          <AlertCircle className="w-3 h-3" />
-                        )}
-                        {monthRow.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="soa-print-section grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-          <div className="soa-compact-trim rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p className="text-slate-500 font-bold uppercase tracking-wide">
-              Months Covered
-            </p>
-            <p className="text-base font-extrabold text-slate-800 mt-1">
-              {summary.monthsCovered || 0}
-            </p>
-          </div>
-          <div className="soa-compact-trim rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p className="text-slate-500 font-bold uppercase tracking-wide">
-              Last Payment
-            </p>
-            <p className="text-base font-extrabold text-slate-800 mt-1">
-              {summary.lastPaymentDate || "-"}
-            </p>
-          </div>
-          <div className="soa-compact-trim rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p className="text-slate-500 font-bold uppercase tracking-wide flex items-center gap-1">
-              <Wallet className="w-3.5 h-3.5" /> Due Months
-            </p>
-            <p className="text-base font-extrabold text-slate-800 mt-1">
-              {insights.monthsWithDue || 0}
-            </p>
-          </div>
-        </div>
-
-        <div className="soa-print-section rounded-xl border border-slate-200 overflow-hidden">
-          <div className="bg-slate-100 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-600">
-            Latest Transactions
-          </div>
-          <div className="overflow-x-auto">
-            <table className="soa-print-table w-full text-xs">
-              <thead className="bg-slate-50 text-slate-600">
-                <tr>
-                  <th className="text-left px-3 py-2 font-bold">#</th>
-                  <th className="text-left px-3 py-2 font-bold">Month</th>
-                  <th className="text-left px-3 py-2 font-bold">Vehicle</th>
-                  <th className="text-right px-3 py-2 font-bold">Billed</th>
-                  <th className="text-right px-3 py-2 font-bold">Paid</th>
-                  <th className="text-right px-3 py-2 font-bold">Due</th>
-                  <th className="text-left px-3 py-2 font-bold">Due Date</th>
-                  <th className="text-center px-3 py-2 font-bold">Mode</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      className="px-3 py-5 text-center text-slate-400 italic"
-                    >
-                      No transactions found.
-                    </td>
-                  </tr>
-                )}
-                {transactions.slice(0, 10).map((entry) => (
-                  <tr
-                    key={entry.id || `${entry.serialNo}-${entry.billingMonth}`}
-                    className="soa-compact-trim border-t border-slate-100"
-                  >
-                    <td className="px-3 py-2 text-slate-500">
-                      {entry.serialNo}
-                    </td>
-                    <td className="px-3 py-2 font-semibold text-slate-700">
-                      {entry.monthLabel}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {buildVehicleLabel(entry.registrationNo, entry.parkingNo)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-slate-700">
-                      {formatAmount(entry.billedAmount)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-emerald-700 font-semibold">
-                      {formatAmount(entry.paidAmount)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-rose-600 font-semibold">
-                      {formatAmount(entry.dueAmount)}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {entry.dueDateDisplay || "-"}
+                      {row.paidDate || "-"}
                     </td>
                     <td className="px-3 py-2 text-center text-slate-600">
-                      {entry.paymentMode || "-"}
+                      {row.paymentMode || "-"}
+                    </td>
+                    <td className="px-3 py-2 text-center text-slate-700 font-semibold">
+                      {row.residenceCount}
+                    </td>
+                    <td className="px-3 py-2 text-center text-slate-700 font-semibold">
+                      {row.onewashCount}
                     </td>
                   </tr>
                 ))}
@@ -428,125 +649,106 @@ const SOATemplateCard = ({ soaData }) => {
 
         <div className="soa-print-section rounded-xl border border-slate-200 overflow-hidden">
           <div className="bg-slate-100 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-600">
-            OneWash Transactions
-          </div>
-          <div className="overflow-x-auto">
-            <table className="soa-print-table w-full text-xs">
-              <thead className="bg-slate-50 text-slate-600">
-                <tr>
-                  <th className="text-left px-3 py-2 font-bold">#</th>
-                  <th className="text-left px-3 py-2 font-bold">Month</th>
-                  <th className="text-left px-3 py-2 font-bold">Vehicle</th>
-                  <th className="text-right px-3 py-2 font-bold">Base</th>
-                  <th className="text-right px-3 py-2 font-bold">Tips</th>
-                  <th className="text-right px-3 py-2 font-bold">Paid</th>
-                  <th className="text-right px-3 py-2 font-bold">Due</th>
-                  <th className="text-center px-3 py-2 font-bold">Mode</th>
-                </tr>
-              </thead>
-              <tbody>
-                {oneWashTransactions.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      className="px-3 py-5 text-center text-slate-400 italic"
-                    >
-                      No onewash records found.
-                    </td>
-                  </tr>
-                )}
-                {oneWashTransactions.slice(0, 10).map((entry) => (
-                  <tr
-                    key={entry.id || `ow-${entry.serialNo}-${entry.billingMonth}`}
-                    className="soa-compact-trim border-t border-slate-100"
-                  >
-                    <td className="px-3 py-2 text-slate-500">{entry.serialNo}</td>
-                    <td className="px-3 py-2 font-semibold text-slate-700">
-                      {entry.monthLabel}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {buildVehicleLabel(entry.registrationNo, entry.parkingNo)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-slate-700">
-                      {formatAmount(entry.baseAmount)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-amber-700 font-semibold">
-                      {formatAmount(entry.tipAmount)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-emerald-700 font-semibold">
-                      {formatAmount(entry.paidAmount)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-rose-600 font-semibold">
-                      {formatAmount(entry.dueAmount)}
-                    </td>
-                    <td className="px-3 py-2 text-center text-slate-600">
-                      {entry.paymentMode || "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="soa-print-section rounded-xl border border-slate-200 overflow-hidden">
-          <div className="bg-slate-100 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-600">
-            Wash Activity (Work Records)
+            Wash Activity Schedule
           </div>
           <div className="px-4 py-2 text-[11px] text-slate-500 border-b border-slate-100 bg-slate-50">
-            Total: {washActivitySummary.totalWashes || 0} | Completed: {washActivitySummary.completed || 0} | Pending: {washActivitySummary.pending || 0} | Rejected: {washActivitySummary.rejected || 0}
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100 text-emerald-700">
+                <Check className="w-3 h-3" />
+              </span>
+              Done
+            </span>
+            <span className="mx-2">|</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-rose-100 text-rose-700">
+                <X className="w-3 h-3" />
+              </span>
+              Missed
+            </span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="soa-print-table w-full text-xs">
-              <thead className="bg-slate-50 text-slate-600">
-                <tr>
-                  <th className="text-left px-3 py-2 font-bold">#</th>
-                  <th className="text-left px-3 py-2 font-bold">Date</th>
-                  <th className="text-left px-3 py-2 font-bold">Type</th>
-                  <th className="text-left px-3 py-2 font-bold">Vehicle</th>
-                  <th className="text-center px-3 py-2 font-bold">Status</th>
-                  <th className="text-left px-3 py-2 font-bold">Worker</th>
-                  <th className="text-right px-3 py-2 font-bold">Amount</th>
-                  <th className="text-right px-3 py-2 font-bold">Tips</th>
-                </tr>
-              </thead>
-              <tbody>
-                {washActivityEntries.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      className="px-3 py-5 text-center text-slate-400 italic"
-                    >
-                      No wash activity records found.
-                    </td>
-                  </tr>
-                )}
-                {washActivityEntries.slice(0, 10).map((entry) => (
-                  <tr
-                    key={entry.id || `wa-${entry.serialNo}-${entry.date}`}
-                    className="soa-compact-trim border-t border-slate-100"
-                  >
-                    <td className="px-3 py-2 text-slate-500">{entry.serialNo}</td>
-                    <td className="px-3 py-2 text-slate-700">{entry.date || "-"}</td>
-                    <td className="px-3 py-2 text-slate-600">{entry.activityType || "-"}</td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {buildVehicleLabel(entry.registrationNo, entry.parkingNo)}
-                    </td>
-                    <td className="px-3 py-2 text-center text-slate-600">{entry.status || "-"}</td>
-                    <td className="px-3 py-2 text-slate-600">{entry.workerName || "-"}</td>
-                    <td className="px-3 py-2 text-right text-slate-700">{formatAmount(entry.amount)}</td>
-                    <td className="px-3 py-2 text-right text-amber-700 font-semibold">{formatAmount(entry.tipAmount)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          {scheduleVehicles.length === 0 && (
+            <div className="px-4 py-5 text-center text-slate-400 italic">
+              No vehicles available for schedule view.
+            </div>
+          )}
+          {scheduleVehicles.map((vehicle) => {
+            const scheduleRows = buildScheduleRows(vehicle);
+            const vehicleLabel = buildVehicleLabel(
+              vehicle.registrationNo,
+              vehicle.parkingNo,
+            );
 
-        <div className="soa-print-section rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-700 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>Prepared By: ____________________</div>
-          <div>Approved By: ____________________</div>
-          <div>Signature: ____________________</div>
+            return (
+              <div key={vehicle.vehicleId || vehicleLabel} className="border-t border-slate-100">
+                <div className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-600 flex items-center gap-2">
+                  <Car className="w-3.5 h-3.5" /> {vehicleLabel}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="soa-print-table w-full text-[11px]">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-bold">Month</th>
+                        {Array.from({ length: 31 }, (_, index) => (
+                          <th
+                            key={`day-${index + 1}`}
+                            className="text-center px-2 py-2 font-bold"
+                          >
+                            {index + 1}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scheduleRows.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={32}
+                            className="px-3 py-5 text-center text-slate-400 italic"
+                          >
+                            No schedule data available for selected months.
+                          </td>
+                        </tr>
+                      )}
+                      {scheduleRows.map((row) => (
+                        <tr
+                          key={`${vehicle.vehicleId || vehicleLabel}-${row.monthKey}`}
+                          className="soa-compact-trim border-t border-slate-100"
+                        >
+                          <td className="px-3 py-2 font-semibold text-slate-700">
+                            {row.label}
+                          </td>
+                          {Array.from({ length: 31 }, (_, index) => {
+                            const value = row.days[index] || "none";
+                            if (value === "done") {
+                              return (
+                                <td key={`${row.monthKey}-done-${index}`} className="px-2 py-2 text-center">
+                                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100 text-emerald-700">
+                                    <Check className="w-3 h-3" />
+                                  </span>
+                                </td>
+                              );
+                            }
+
+                            if (value === "missed") {
+                              return (
+                                <td key={`${row.monthKey}-missed-${index}`} className="px-2 py-2 text-center">
+                                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-rose-100 text-rose-700">
+                                    <X className="w-3 h-3" />
+                                  </span>
+                                </td>
+                              );
+                            }
+
+                            return <td key={`${row.monthKey}-none-${index}`} className="px-2 py-2" />;
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

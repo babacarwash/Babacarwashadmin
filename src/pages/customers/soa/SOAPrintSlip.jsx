@@ -1,18 +1,13 @@
 import React from "react";
 
+const COMPLETED_STATUSES = new Set(["COMPLETED", "DONE", "COLLECTED"]);
+
 const toNumberSafe = (value) => {
   const parsed = Number(value || 0);
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
 const formatMoney = (value) => toNumberSafe(value).toFixed(2);
-
-const cleanDueDate = (value) => {
-  const normalized = String(value || "")
-    .replace(/\s*\(Paid\)\s*/gi, "")
-    .trim();
-  return normalized || "-";
-};
 
 const buildPeriodCode = () => {
   const now = new Date();
@@ -23,78 +18,149 @@ const buildPeriodCode = () => {
   return `${monthCode}/${yearCode} SOA`;
 };
 
+const getMonthLabel = (monthKey) => {
+  if (!monthKey) return "-";
+  const [year, month] = String(monthKey).split("-").map(Number);
+  if (!year || !month) return monthKey;
+  const date = new Date(year, month - 1, 1);
+  return date
+    .toLocaleString("default", { month: "short", year: "numeric" })
+    .toUpperCase();
+};
+
 const SOAPrintSlip = ({ soaData, selectedVehicleLabel, monthRangeLabel }) => {
   const customer = soaData?.customer || {};
   const summary = soaData?.summary || {};
-  const insights = soaData?.insights || {};
   const monthly = Array.isArray(soaData?.monthly) ? soaData.monthly : [];
-  const oneWashSummary = soaData?.oneWash?.summary || {};
-  const washActivitySummary = soaData?.washActivity?.summary || {};
+  const transactions = soaData?.transactions || [];
+  const washActivityEntries = soaData?.washActivity?.entries || [];
+  const oneWashTransactions = soaData?.oneWash?.transactions || [];
+  const availableMonths = Array.isArray(soaData?.availableMonths)
+    ? soaData.availableMonths
+    : [];
+  const fromMonth = soaData?.filters?.fromMonth || "";
+  const toMonth = soaData?.filters?.toMonth || "";
 
-  const monthlyRows =
-    monthly.length > 0
-      ? monthly.map((row) => ({
-          date: cleanDueDate(row?.dueDateDisplay || row?.dueDate),
-          particulars: `${String(row?.monthLabel || "-").toUpperCase()} MONTHLY BILLING`,
-          type: "Dr",
-          debit: toNumberSafe(row?.billedAmount),
-          credit: toNumberSafe(row?.paidAmount),
-        }))
-      : [
-          {
-            date: "-",
-            particulars: "NO MONTHLY RECORDS AVAILABLE",
-            type: "Dr",
-            debit: toNumberSafe(summary?.totalBilled),
-            credit: toNumberSafe(summary?.totalPaid),
-          },
-        ];
+  const monthKeysBase = availableMonths
+    .map((month) => String(month.value || "").trim())
+    .filter(Boolean);
 
-  const oneWashRows = [];
-  if (
-    toNumberSafe(oneWashSummary.totalBaseAmount) > 0 ||
-    toNumberSafe(oneWashSummary.totalTips) > 0 ||
-    toNumberSafe(oneWashSummary.totalPaid) > 0 ||
-    Number(oneWashSummary.count || 0) > 0
-  ) {
-    oneWashRows.push({
-      date: "-",
-      particulars: "ONEWASH BASE AMOUNT",
-      type: "Dr",
-      debit: toNumberSafe(oneWashSummary.totalBaseAmount),
-      credit: 0,
-    });
+  const fallbackMonths = new Set();
+  monthly.forEach((row) => {
+    if (row?.month) fallbackMonths.add(row.month);
+  });
+  washActivityEntries.forEach((row) => {
+    if (row?.billingMonth) fallbackMonths.add(row.billingMonth);
+  });
+  oneWashTransactions.forEach((row) => {
+    if (row?.billingMonth) fallbackMonths.add(row.billingMonth);
+  });
 
-    if (toNumberSafe(oneWashSummary.totalTips) > 0) {
-      oneWashRows.push({
-        date: "-",
-        particulars: "ONEWASH TIPS",
-        type: "Dr",
-        debit: toNumberSafe(oneWashSummary.totalTips),
-        credit: 0,
-      });
+  const monthKeys = (monthKeysBase.length > 0
+    ? monthKeysBase
+    : Array.from(fallbackMonths)
+  )
+    .filter((key) => {
+      if (fromMonth && key < fromMonth) return false;
+      if (toMonth && key > toMonth) return false;
+      return true;
+    })
+    .sort((a, b) => a.localeCompare(b));
+
+  const paymentByMonth = new Map();
+  monthly.forEach((row) => {
+    if (row?.month) paymentByMonth.set(row.month, row);
+  });
+
+  const paymentMetaByMonth = new Map();
+  transactions.forEach((row) => {
+    if (!row?.billingMonth) return;
+    const meta = paymentMetaByMonth.get(row.billingMonth) || {
+      modes: new Set(),
+      paidDate: "-",
+      latestAt: 0,
+    };
+
+    if (row.paymentMode) {
+      meta.modes.add(String(row.paymentMode).trim());
     }
 
-    oneWashRows.push({
-      date: "-",
-      particulars: "ONEWASH COLLECTED",
-      type: "Cr",
-      debit: 0,
-      credit: toNumberSafe(oneWashSummary.totalPaid),
-    });
-  }
+    if (Number(row.paidAmount || 0) > 0) {
+      const timestamp = new Date(row.createdAt || 0).getTime();
+      if (timestamp >= meta.latestAt) {
+        meta.latestAt = timestamp;
+        meta.paidDate = row.paymentDate || "-";
+      }
+    }
 
-  const statementRows = [...monthlyRows, ...oneWashRows];
+    paymentMetaByMonth.set(row.billingMonth, meta);
+  });
 
-  const totalDebit = statementRows.reduce(
-    (acc, item) => acc + toNumberSafe(item.debit),
-    0,
-  );
-  const totalCredit = statementRows.reduce(
-    (acc, item) => acc + toNumberSafe(item.credit),
-    0,
-  );
-  const closingBalance = toNumberSafe(summary?.overallDue ?? summary?.totalDue);
+  const washCountsByMonth = new Map();
+  washActivityEntries.forEach((row) => {
+    const monthKey = row?.billingMonth;
+    if (!monthKey) return;
+    const status = String(row?.status || "").toUpperCase();
+    if (!COMPLETED_STATUSES.has(status)) return;
+
+    const counts = washCountsByMonth.get(monthKey) || {
+      residence: 0,
+      onewash: 0,
+    };
+    const activityType = String(row?.activityType || "").toUpperCase();
+    if (activityType === "ONEWASH") {
+      counts.onewash += 1;
+    } else {
+      counts.residence += 1;
+    }
+
+    washCountsByMonth.set(monthKey, counts);
+  });
+
+  const monthlyRows = monthKeys.map((monthKey) => {
+    const monthRow = paymentByMonth.get(monthKey) || {};
+    const meta = paymentMetaByMonth.get(monthKey) || { modes: new Set() };
+    const modes = meta.modes;
+    const paymentMode =
+      modes.size === 0
+        ? "-"
+        : modes.size === 1
+          ? Array.from(modes)[0]
+          : "MULTIPLE";
+    const washCounts = washCountsByMonth.get(monthKey) || {
+      residence: 0,
+      onewash: 0,
+    };
+
+    return {
+      monthLabel: getMonthLabel(monthKey),
+      openingBalance: monthRow.openingBalance || 0,
+      subscriptionAmount: monthRow.subscriptionAmount || 0,
+      billedAmount: monthRow.billedAmount || 0,
+      paidAmount: monthRow.paidAmount || 0,
+      dueAmount: monthRow.dueAmount || 0,
+      paidDate: meta.paidDate || "-",
+      paymentMode,
+      residenceCount: washCounts.residence,
+      onewashCount: washCounts.onewash,
+    };
+  });
+
+  const baseTh = {
+    border: "1px solid #64748b",
+    backgroundColor: "#1e293b",
+    color: "#ffffff",
+    padding: "5px",
+    textTransform: "uppercase",
+    fontWeight: 700,
+    textAlign: "center",
+  };
+
+  const baseTd = {
+    border: "1px solid #94a3b8",
+    padding: "4px 6px",
+    verticalAlign: "middle",
+  };
 
   const styles = {
     sheet: {
@@ -130,42 +196,24 @@ const SOAPrintSlip = ({ soaData, selectedVehicleLabel, monthRangeLabel }) => {
       fontWeight: 700,
       textTransform: "uppercase",
     },
-    ledgerTable: {
+    summaryTable: {
       width: "100%",
       borderCollapse: "collapse",
       fontSize: "8pt",
       marginBottom: "8px",
     },
-    th: {
-      border: "1px solid #64748b",
-      backgroundColor: "#1e293b",
-      color: "#ffffff",
-      padding: "5px",
-      textTransform: "uppercase",
-      fontWeight: 700,
-      textAlign: "center",
-    },
-    td: {
-      border: "1px solid #94a3b8",
-      padding: "4px 6px",
-      verticalAlign: "middle",
-    },
-    tdRight: {
-      border: "1px solid #94a3b8",
-      padding: "4px 6px",
-      textAlign: "right",
-      verticalAlign: "middle",
-    },
-    warningBox: {
-      border: "1px solid #ef4444",
-      color: "#7f1d1d",
+    monthlyTable: {
+      width: "100%",
+      borderCollapse: "collapse",
       fontSize: "7.5pt",
-      fontStyle: "italic",
-      textAlign: "center",
-      padding: "5px",
-      margin: "8px 0",
-      backgroundColor: "#fef2f2",
+      marginBottom: "8px",
     },
+    th: baseTh,
+    thSmall: { ...baseTh, fontSize: "7pt" },
+    td: baseTd,
+    tdRight: { ...baseTd, textAlign: "right" },
+    tdSmall: { ...baseTd, fontSize: "7pt" },
+    tdRightSmall: { ...baseTd, textAlign: "right", fontSize: "7pt" },
     signatureWrap: {
       display: "flex",
       justifyContent: "space-between",
@@ -213,105 +261,108 @@ const SOAPrintSlip = ({ soaData, selectedVehicleLabel, monthRangeLabel }) => {
           </tbody>
         </table>
 
-        <table style={styles.ledgerTable}>
+        <table style={styles.summaryTable}>
           <thead>
             <tr>
-              <th style={{ ...styles.th, width: "12%" }}>Date</th>
-              <th style={{ ...styles.th, textAlign: "left" }}>Particulars</th>
-              <th style={{ ...styles.th, width: "8%" }}>Type</th>
-              <th style={{ ...styles.th, width: "18%" }}>Debit</th>
-              <th style={{ ...styles.th, width: "18%" }}>Credit</th>
+              <th style={styles.th}>Metric</th>
+              <th style={styles.th}>Value</th>
+              <th style={styles.th}>Metric</th>
+              <th style={styles.th}>Value</th>
             </tr>
           </thead>
           <tbody>
-            {statementRows.map((item, index) => (
-              <tr key={`${item.particulars}-${index}`}>
-                <td style={styles.td}>{item.date}</td>
-                <td style={styles.td}>{item.particulars}</td>
-                <td style={{ ...styles.td, textAlign: "center" }}>
-                  {item.type}
-                </td>
-                <td style={styles.tdRight}>{formatMoney(item.debit)}</td>
-                <td style={styles.tdRight}>{formatMoney(item.credit)}</td>
-              </tr>
-            ))}
-
             <tr>
-              <td style={styles.td} />
-              <td style={{ ...styles.td, fontWeight: 800, textAlign: "right" }}>
-                TOTAL
+              <td style={styles.td}>Total Opening</td>
+              <td style={styles.tdRight}>
+                {formatMoney(summary.totalOpeningBalance)}
               </td>
-              <td style={styles.td} />
-              <td style={{ ...styles.tdRight, fontWeight: 800 }}>
-                {formatMoney(totalDebit)}
-              </td>
-              <td style={{ ...styles.tdRight, fontWeight: 800 }}>
-                {formatMoney(totalCredit)}
+              <td style={styles.td}>Total Subscription</td>
+              <td style={styles.tdRight}>
+                {formatMoney(summary.totalSubscription)}
               </td>
             </tr>
-
             <tr>
-              <td style={styles.td} />
-              <td style={{ ...styles.td, fontWeight: 800, textAlign: "right" }}>
-                CLOSING BALANCE
+              <td style={styles.td}>Total Billed</td>
+              <td style={styles.tdRight}>
+                {formatMoney(summary.totalBilled)}
               </td>
-              <td style={styles.td} />
-              <td style={styles.td} />
-              <td
-                style={{
-                  ...styles.tdRight,
-                  fontWeight: 800,
-                  color: "#ffffff",
-                  backgroundColor: "#dc2626",
-                }}
-              >
-                {formatMoney(closingBalance)}
+              <td style={styles.td}>Total Paid</td>
+              <td style={styles.tdRight}>
+                {formatMoney(summary.totalPaid)}
               </td>
+            </tr>
+            <tr>
+              <td style={styles.td}>Total Due</td>
+              <td style={styles.tdRight}>
+                {formatMoney(summary.totalDue)}
+              </td>
+              <td style={styles.td}>Collection %</td>
+              <td style={styles.tdRight}>
+                {Number(summary.collectionPercent || 0).toFixed(1)}%
+              </td>
+            </tr>
+            <tr>
+              <td style={styles.td}>Residence Washes</td>
+              <td style={styles.tdRight}>{summary.washCompletedCount || 0}</td>
+              <td style={styles.td}>OneWash Washes</td>
+              <td style={styles.tdRight}>{summary.oneWashCount || 0}</td>
             </tr>
           </tbody>
         </table>
 
-        <div style={styles.warningBox}>
-          Keep this statement for records. Any payment disputes must be reported
-          with receipt proof.
-        </div>
-
-        <table style={styles.infoTable}>
+        <table style={styles.monthlyTable}>
+          <thead>
+            <tr>
+              <th style={styles.thSmall}>Month</th>
+              <th style={styles.thSmall}>Opening</th>
+              <th style={styles.thSmall}>Subscription</th>
+              <th style={styles.thSmall}>Billed</th>
+              <th style={styles.thSmall}>Paid</th>
+              <th style={styles.thSmall}>Due</th>
+              <th style={styles.thSmall}>Paid Date</th>
+              <th style={styles.thSmall}>Mode</th>
+              <th style={styles.thSmall}>Residence</th>
+              <th style={styles.thSmall}>OneWash</th>
+            </tr>
+          </thead>
           <tbody>
-            <tr>
-              <td style={{ ...styles.td, width: "25%" }}>
-                MONTHS COVERED : {summary.monthsCovered || 0}
-              </td>
-              <td style={{ ...styles.td, width: "25%", textAlign: "center" }}>
-                DUE MONTHS : {insights.monthsWithDue || 0}
-              </td>
-              <td style={{ ...styles.td, width: "25%", textAlign: "center" }}>
-                COLLECTION % : {Number(summary.overallCollectionPercent || summary.collectionPercent || 0).toFixed(1)}
-              </td>
-              <td style={{ ...styles.td, width: "25%", textAlign: "right" }}>
-                LAST PAYMENT : {summary.lastPaymentDate || "-"}
-              </td>
-            </tr>
-            <tr>
-              <td style={{ ...styles.td, width: "25%" }}>
-                ONEWASH COUNT : {oneWashSummary.count || 0}
-              </td>
-              <td style={{ ...styles.td, width: "25%", textAlign: "center" }}>
-                ONEWASH TIPS : {formatMoney(oneWashSummary.totalTips)}
-              </td>
-              <td style={{ ...styles.td, width: "25%", textAlign: "center" }}>
-                WASHES : {washActivitySummary.totalWashes || 0}
-              </td>
-              <td style={{ ...styles.td, width: "25%", textAlign: "right" }}>
-                COMPLETED : {washActivitySummary.completed || 0}
-              </td>
-            </tr>
+            {monthlyRows.length === 0 && (
+              <tr>
+                <td style={styles.tdSmall} colSpan={10}>
+                  NO MONTHLY RECORDS AVAILABLE
+                </td>
+              </tr>
+            )}
+            {monthlyRows.map((row, index) => (
+              <tr key={`${row.monthLabel}-${index}`}>
+                <td style={styles.tdSmall}>{row.monthLabel}</td>
+                <td style={styles.tdRightSmall}>
+                  {formatMoney(row.openingBalance)}
+                </td>
+                <td style={styles.tdRightSmall}>
+                  {formatMoney(row.subscriptionAmount)}
+                </td>
+                <td style={styles.tdRightSmall}>
+                  {formatMoney(row.billedAmount)}
+                </td>
+                <td style={styles.tdRightSmall}>
+                  {formatMoney(row.paidAmount)}
+                </td>
+                <td style={styles.tdRightSmall}>
+                  {formatMoney(row.dueAmount)}
+                </td>
+                <td style={styles.tdSmall}>{row.paidDate || "-"}</td>
+                <td style={styles.tdSmall}>{row.paymentMode || "-"}</td>
+                <td style={styles.tdRightSmall}>{row.residenceCount}</td>
+                <td style={styles.tdRightSmall}>{row.onewashCount}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
 
         <div style={styles.signatureWrap}>
-          <div style={styles.signatureItem}>Prepared By Signatory</div>
-          <div style={styles.signatureItem}>Received By Signatory</div>
+          <div style={styles.signatureItem}>Prepared By</div>
+          <div style={styles.signatureItem}>Approved By</div>
         </div>
       </div>
     </div>
