@@ -6,7 +6,7 @@ export const aiAssistantService = {
     return response.data?.data || [];
   },
 
-  askPrompt: async (prompt, limit = 8) => {
+  askPrompt: async (prompt, limit = 20) => {
     const response = await api.post("/ai/search", {
       prompt,
       limit,
@@ -63,6 +63,26 @@ export const aiAssistantService = {
     if (sort && typeof sort === "object" && !Array.isArray(sort)) {
       payload.sort = sort;
     }
+
+    const response = await api.post("/ai/search", payload);
+    return response.data;
+  },
+
+  getPaymentsPage: async ({
+    serviceCategory,
+    search = "",
+    filters = {},
+    page = 1,
+    limit = 25,
+  } = {}) => {
+    const payload = {
+      action: "paymentsPage",
+      serviceCategory,
+      search,
+      filters,
+      page,
+      limit,
+    };
 
     const response = await api.post("/ai/search", payload);
     return response.data;

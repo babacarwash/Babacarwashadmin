@@ -3,48 +3,26 @@ import { Bot, Loader2, Maximize2, Minimize2, Search, Trash2 } from "lucide-react
 import { aiAssistantService } from "../../api/aiAssistantService";
 import AiPaymentsResultTable from "./AiPaymentsResultTable";
 
+const PROMPT_LIMIT = 20;
+
 const getErrorMessage = (error) => {
   const apiMessage = error?.response?.data?.message;
   if (apiMessage) return apiMessage;
 
   if (error?.message) return error.message;
 
-  return "Failed to fetch AI results";
+  return "Unable to complete the request. Please try again.";
 };
 
-const isObjectIdLike = (value) =>
-  typeof value === "string" && /^[a-fA-F0-9]{24}$/.test(value.trim());
+const isObjectIdLike = (value) => {
+  const text = String(value || "");
+  return /^[0-9a-fA-F]{24}$/.test(text);
+};
 
 const formatDate = (value) => {
-  const text = String(value || "").trim();
-  if (!text) {
-    return "";
-  }
-
-  const looksLikeDate =
-    /\d{4}-\d{2}-\d{2}/.test(text) ||
-    /\d{2}\/\d{2}\/\d{4}/.test(text) ||
-    /\d{4}\/\d{2}\/\d{2}/.test(text) ||
-    text.includes("T");
-
-  if (!looksLikeDate) {
-    return "";
-  }
-
+  if (!value) return "";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return date.toLocaleString();
-};
-
-const formatPeriodDate = (value) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
+  if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
@@ -52,45 +30,39 @@ const formatPeriodDate = (value) => {
   });
 };
 
-const toReadableDate = (value = "") => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return String(value || "").trim();
-  }
+const formatPeriodDate = (value) => formatDate(value) || "-";
 
+const toReadableDate = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
-};
-
-const formatMoney = (value) => {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return "";
-
-  return new Intl.NumberFormat("en-IN", {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 0,
-  }).format(number);
 };
 
 const normalizeStatus = (value) => {
-  if (value === null || value === undefined || value === "") {
-    return "";
-  }
-
-  const normalized = String(value).trim().toLowerCase();
-
-  if (["1", "active", "true"].includes(normalized)) return "Active";
-  if (["0", "inactive", "false"].includes(normalized)) return "Inactive";
-  if (["2", "deactivated"].includes(normalized)) return "Deactivated";
-
+  if (value === undefined || value === null) return "";
+  const text = String(value).trim().toLowerCase();
+  if (text === "1" || text === "active") return "Active";
+  if (text === "0" || text === "inactive") return "Inactive";
+  if (text === "2" || text === "deactivated") return "Deactivated";
   return String(value);
 };
 
+const formatMoney = (value) => {
+  if (value === undefined || value === null || value === "") return "";
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return String(value);
+  return amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
 const displayValue = (value) => {
-  if (value === null || value === undefined || value === "") {
+  if (value === null || value === undefined) {
     return "-";
   }
 
@@ -282,6 +254,73 @@ const buildFieldsForRecord = (domain, record) => {
   if (domain === "sites") return buildSiteFields(record);
 
   return buildGenericFields(record);
+};
+
+const buildTableModel = (domain, rows = []) => {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  if (!safeRows.length) {
+    return { columns: [], tableRows: [] };
+  }
+
+  const sampleFields = keepDisplayableFields(
+    buildFieldsForRecord(domain, safeRows[0]),
+  );
+  const labels = sampleFields.map((field) => field.label).slice(0, 8);
+
+  const columns = labels.map((label) => ({
+    key: label,
+    header: label,
+    accessor: label,
+    render: (row) => (
+      <span className="text-xs font-medium text-slate-700">
+        {row[label] || "-"}
+      </span>
+    ),
+  }));
+
+  const tableRows = safeRows.map((record, index) => {
+    const fields = keepDisplayableFields(buildFieldsForRecord(domain, record));
+    const valueMap = new Map(fields.map((field) => [field.label, field.shown]));
+
+    const rowData = {
+      id: record._id || record.id || `${domain}-${index}`,
+    };
+
+    labels.forEach((label) => {
+      rowData[label] = valueMap.get(label) || "-";
+    });
+
+    return rowData;
+  });
+
+  return { columns, tableRows };
+};
+
+const toGroupPagination = (group, fallbackLimit = PROMPT_LIMIT) => {
+  if (!group || !group.pagination) return null;
+
+  const limit = Number(group.pagination.limit || fallbackLimit);
+  const total = Number(group.total || group.pagination.total || 0);
+  const page = Number(group.pagination.page || 1);
+  const totalPages = Number(
+    group.pagination.totalPages || Math.ceil(total / Math.max(1, limit)) || 1,
+  );
+
+  return {
+    page,
+    limit,
+    total,
+    totalPages,
+    hasNextPage:
+      group.pagination.hasNextPage !== undefined
+        ? group.pagination.hasNextPage
+        : page < totalPages,
+    hasPrevPage:
+      group.pagination.hasPrevPage !== undefined
+        ? group.pagination.hasPrevPage
+        : page > 1,
+    displayTotal: total,
+  };
 };
 
 const keepDisplayableFields = (items = []) => {
@@ -1243,7 +1282,10 @@ const AiAssistantPage = () => {
             endDate: action.endDate,
           });
         } else if (action?.type === "ask-prompt") {
-          response = await aiAssistantService.askPrompt(action.prompt, 8);
+          response = await aiAssistantService.askPrompt(
+            action.prompt,
+            PROMPT_LIMIT,
+          );
         }
       }
 
@@ -1272,7 +1314,10 @@ const AiAssistantPage = () => {
               : {}),
           });
         } else {
-          response = await aiAssistantService.askPrompt(trimmedPrompt, 8);
+          response = await aiAssistantService.askPrompt(
+            trimmedPrompt,
+            PROMPT_LIMIT,
+          );
         }
       }
 
@@ -1456,6 +1501,76 @@ const AiAssistantPage = () => {
     }
   };
 
+  const updateMessageGroup = (messageId, targetGroup, updatedGroup) => {
+    setMessages((previous) =>
+      previous.map((message) => {
+        if (message.id !== messageId) return message;
+        const payload = message.payload;
+        if (!payload || !Array.isArray(payload.results)) return message;
+
+        const results = payload.results.map((group) => {
+          if (
+            group.domain === targetGroup.domain &&
+            group.label === targetGroup.label
+          ) {
+            return { ...group, ...updatedGroup };
+          }
+
+          return group;
+        });
+
+        return { ...message, payload: { ...payload, results } };
+      }),
+    );
+  };
+
+  const handleGroupPageChange = async ({
+    messageId,
+    group,
+    page,
+    parentKeyword,
+  }) => {
+    if (isSearching) return;
+
+    setIsSearching(true);
+    try {
+      let response = null;
+      const limit = Number(group.pagination?.limit || PROMPT_LIMIT);
+
+      if (group.domain === "payments" && group.pageInfo?.action) {
+        response = await aiAssistantService.getPaymentsPage({
+          serviceCategory: group.pageInfo.serviceCategory,
+          search: group.pageInfo.search,
+          filters: group.pageInfo.filters,
+          page,
+          limit,
+        });
+      } else {
+        const query = String(group.keyword || parentKeyword || "").trim();
+        response = await aiAssistantService.search({
+          domain: group.domain,
+          query,
+          filters: group.filters || {},
+          page,
+          limit,
+        });
+      }
+
+      if (!response) return;
+
+      updateMessageGroup(messageId, group, {
+        ...response,
+        data: Array.isArray(response.data) ? response.data : [],
+        total: Number(response.total || group.total || 0),
+        pagination: response.pagination || group.pagination,
+      });
+    } catch (error) {
+      console.error("Failed to load page", error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const handleConversationAction = async (entry, optionIndex) => {
     const action = normalizeConversationAction(entry?.action || {});
     if (!action || isSearching) {
@@ -1502,7 +1617,10 @@ const AiAssistantPage = () => {
           endDate: action.endDate,
         });
       } else if (action.type === "ask-prompt") {
-        response = await aiAssistantService.askPrompt(action.prompt, 8);
+        response = await aiAssistantService.askPrompt(
+          action.prompt,
+          PROMPT_LIMIT,
+        );
       }
 
       if (!response) {

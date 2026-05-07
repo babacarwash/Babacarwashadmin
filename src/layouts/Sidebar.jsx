@@ -31,6 +31,7 @@ import {
   Shield,
   Bell,
   Bot,
+  UploadCloud,
 } from "lucide-react";
 
 const Sidebar = ({ isOpen, isMobile, onClose }) => {
@@ -675,6 +676,13 @@ const Sidebar = ({ isOpen, isMobile, onClose }) => {
                       onClick={handleLinkClick}
                       isMobile={isMobile}
                       badge={totalUnreadMessages}
+                    />
+                    <NavItem
+                      to="/admin/staff-app-updates"
+                      icon={UploadCloud}
+                      label="Staff App Updates"
+                      onClick={handleLinkClick}
+                      isMobile={isMobile}
                     />
                   </>
                 )}

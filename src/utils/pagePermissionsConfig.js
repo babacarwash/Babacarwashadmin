@@ -60,6 +60,7 @@ const PAGE_PERMISSIONS_CONFIG = {
       { key: "mobile", label: "Mobile" },
       { key: "company", label: "Company" },
       { key: "assignments", label: "Assignments" },
+      { key: "appUpdate", label: "App Update" },
       { key: "quickLinks", label: "Quick Links" },
       { key: "status", label: "Status" },
     ],

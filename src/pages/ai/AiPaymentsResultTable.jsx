@@ -177,6 +177,9 @@ const ResidenceTable = ({
   onDateChange,
   onApplyDate,
   dateApplyDisabled,
+  pagination,
+  onPageChange,
+  onLimitChange,
 }) => {
   const columns = useMemo(
     () => [
@@ -364,6 +367,9 @@ const ResidenceTable = ({
         columns={columns}
         data={rows}
         hideSearch={true}
+        pagination={pagination}
+        onPageChange={onPageChange}
+        onLimitChange={onLimitChange}
         actionButton={
           openLink ? (
             <Link
@@ -388,6 +394,9 @@ const OneWashTable = ({
   onDateChange,
   onApplyDate,
   dateApplyDisabled,
+  pagination,
+  onPageChange,
+  onLimitChange,
 }) => {
   const columns = useMemo(
     () => [
@@ -520,6 +529,9 @@ const OneWashTable = ({
         columns={columns}
         data={rows}
         hideSearch={true}
+        pagination={pagination}
+        onPageChange={onPageChange}
+        onLimitChange={onLimitChange}
         actionButton={
           openLink ? (
             <Link
@@ -544,6 +556,9 @@ const AiPaymentsResultTable = ({
   selectedPeriod = null,
   onApplyDateRange,
   isSearching = false,
+  pagination = null,
+  onPageChange,
+  onLimitChange,
 }) => {
   const safeRows = Array.isArray(rows) ? rows : [];
   const isOneWashByLabel = String(label || "")
@@ -608,6 +623,9 @@ const AiPaymentsResultTable = ({
         onDateChange={handleDateChange}
         onApplyDate={handleApplyDate}
         dateApplyDisabled={dateApplyDisabled}
+        pagination={pagination}
+        onPageChange={onPageChange}
+        onLimitChange={onLimitChange}
       />
     );
   }
@@ -621,6 +639,9 @@ const AiPaymentsResultTable = ({
       onDateChange={handleDateChange}
       onApplyDate={handleApplyDate}
       dateApplyDisabled={dateApplyDisabled}
+      pagination={pagination}
+      onPageChange={onPageChange}
+      onLimitChange={onLimitChange}
     />
   );
 };

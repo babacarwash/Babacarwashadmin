@@ -138,7 +138,10 @@ const ProtectedRouteContent = ({ route }) => {
   // BLOCK: Manager (admin staff) accessing admin-only routes
   if (userRole === "manager") {
     // Admin Staff page is admin-only
-    if (route.path === "/admin-staff") {
+    if (
+      route.path === "/admin-staff" ||
+      route.path === "/admin/staff-app-updates"
+    ) {
       return <Navigate to="/" replace />;
     }
 

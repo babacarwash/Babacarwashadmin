@@ -21,6 +21,7 @@ import {
   Activity,
   Bell,
   Bot,
+  UploadCloud,
 } from "lucide-react";
 
 // Page Imports
@@ -96,6 +97,7 @@ import StaffPermissions from "./pages/admin-staff/StaffPermissions";
 import AccessRequests from "./pages/admin-staff/AccessRequests";
 import AdminStaffActivityDetail from "./pages/admin-staff/AdminStaffActivityDetail";
 import AiAssistantPage from "./pages/ai/AiAssistantPage";
+import StaffAppUpdates from "./pages/workers-management/StaffAppUpdates";
 
 export const routes = [
   // --- OVERVIEW ---
@@ -397,6 +399,12 @@ export const routes = [
     title: "Admin Staff",
     component: <AdminStaff />,
     icon: Shield,
+  },
+  {
+    path: "/admin/staff-app-updates",
+    title: "Staff App Updates",
+    component: <StaffAppUpdates />,
+    icon: UploadCloud,
   },
   {
     path: "/admin-staff/:id/page-permissions",

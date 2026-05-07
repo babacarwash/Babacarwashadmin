@@ -12,6 +12,7 @@ const PaymentModal = ({ isOpen, onClose, payment, onSuccess }) => {
     payment_mode: "cash",
     payment_date: new Date().toISOString().split("T")[0],
     notes: "",
+    receipt_no: "",
   });
 
   // Load remaining balance
@@ -26,6 +27,7 @@ const PaymentModal = ({ isOpen, onClose, payment, onSuccess }) => {
         payment_mode: "cash",
         payment_date: new Date().toISOString().split("T")[0],
         notes: payment.notes || "",
+        receipt_no: payment.receipt_no || "",
       });
     }
   }, [isOpen, payment]);
@@ -39,10 +41,12 @@ const PaymentModal = ({ isOpen, onClose, payment, onSuccess }) => {
 
     const hasAmount = formData.amount && Number(formData.amount) > 0;
     const hasRemarks = formData.notes && formData.notes.trim();
+    const receiptNo = formData.receipt_no && formData.receipt_no.trim();
+    const hasReceipt = !!receiptNo;
 
-    // Require at least amount OR remarks
-    if (!hasAmount && !hasRemarks) {
-      toast.error("Please enter an amount or add remarks");
+    // Require at least amount, receipt no, or remarks
+    if (!hasAmount && !hasRemarks && !hasReceipt) {
+      toast.error("Please enter an amount, receipt number, or add remarks");
       return;
     }
 
@@ -55,23 +59,30 @@ const PaymentModal = ({ isOpen, onClose, payment, onSuccess }) => {
           Number(formData.amount),
           formData.payment_mode,
           formData.payment_date,
+          receiptNo,
         );
       }
 
-      // Update notes/remarks via the /update endpoint
+      const updatePayload = {};
       if (hasRemarks) {
-        await paymentService.updatePayment(payment._id, {
-          notes: formData.notes.trim(),
-        });
+        updatePayload.notes = formData.notes.trim();
+      }
+      if (!hasAmount && hasReceipt) {
+        updatePayload.receipt_no = receiptNo;
+      }
+      if (Object.keys(updatePayload).length > 0) {
+        await paymentService.updatePayment(payment._id, updatePayload);
       }
 
-      if (hasAmount && hasRemarks) {
-        toast.success("Payment collected and remarks updated");
-      } else if (hasAmount) {
-        toast.success("Payment collected successfully");
-      } else {
-        toast.success("Remarks updated successfully");
-      }
+      const successParts = [];
+      if (hasAmount) successParts.push("Payment collected");
+      if (hasRemarks) successParts.push("Remarks updated");
+      if (hasReceipt) successParts.push("Receipt number updated");
+      toast.success(
+        successParts.length > 0
+          ? `${successParts.join(" and ")} successfully`
+          : "Payment updated successfully",
+      );
 
       onSuccess();
       onClose();
@@ -154,6 +165,18 @@ const PaymentModal = ({ isOpen, onClose, payment, onSuccess }) => {
                     <option value="cheque">Cheque</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className={labelClass}>Receipt No (Optional)</label>
+                <input
+                  type="text"
+                  name="receipt_no"
+                  value={formData.receipt_no}
+                  onChange={handleChange}
+                  className={inputClass}
+                  placeholder="Leave empty to auto-generate on full payment"
+                />
               </div>
 
               <div>

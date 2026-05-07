@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -145,10 +151,14 @@ const getMonthLabel = (monthKey) => {
   const [year, month] = String(monthKey).split("-").map(Number);
   if (!year || !month) return monthKey;
   const date = new Date(year, month - 1, 1);
+  date.setMonth(date.getMonth() + 1);
   return date
     .toLocaleString("default", { month: "short", year: "numeric" })
     .toUpperCase();
 };
+
+const isValidMonthKey = (value) =>
+  /^\d{4}-\d{2}$/.test(String(value || "").trim());
 
 const CustomerSOAPage = () => {
   const { id } = useParams();
@@ -163,6 +173,7 @@ const CustomerSOAPage = () => {
   const [loading, setLoading] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingExcel, setDownloadingExcel] = useState(false);
+  const hasAppliedDefaultMonth = useRef(false);
 
   const loadSOA = useCallback(async () => {
     if (!id) return;
@@ -234,11 +245,24 @@ const CustomerSOAPage = () => {
   }, [soaData, vehicles]);
 
   const monthRangeLabel = useMemo(() => {
-    const fromLabel = getMonthLabel(soaData?.filters?.fromMonth);
-    const toLabel = getMonthLabel(soaData?.filters?.toMonth);
+    const fromKey = soaData?.filters?.fromMonth || "";
+    const toKey = soaData?.filters?.toMonth || "";
 
-    if (!soaData?.filters?.fromMonth && !soaData?.filters?.toMonth) {
+    if (!fromKey && !toKey) {
       return "All Months";
+    }
+
+    const fromLabel = getMonthLabel(fromKey);
+    const toLabel = getMonthLabel(toKey);
+
+    if (fromKey && (!toKey || fromKey === toKey)) {
+      return fromLabel;
+    }
+    if (!fromKey && toKey) {
+      return `Up to ${toLabel}`;
+    }
+    if (fromKey && !toKey) {
+      return `From ${fromLabel}`;
     }
 
     return `${fromLabel} to ${toLabel}`;
@@ -283,6 +307,24 @@ const CustomerSOAPage = () => {
     [vehicleIdParam, fromMonthParam, toMonthParam, setSearchParams],
   );
 
+  useEffect(() => {
+    if (hasAppliedDefaultMonth.current) return;
+    if (fromMonthParam || toMonthParam) {
+      hasAppliedDefaultMonth.current = true;
+      return;
+    }
+    if (!availableMonths.length) return;
+
+    const latestMonth = availableMonths[availableMonths.length - 1]?.value;
+    if (!latestMonth) return;
+
+    hasAppliedDefaultMonth.current = true;
+    applyInstantFilters({
+      fromMonth: String(latestMonth),
+      toMonth: String(latestMonth),
+    });
+  }, [availableMonths, fromMonthParam, toMonthParam, applyInstantFilters]);
+
   const vehicleOptions = useMemo(
     () => [
       { value: "", label: "All Vehicles" },
@@ -301,7 +343,7 @@ const CustomerSOAPage = () => {
       { value: "", label: "All" },
       ...availableMonths.map((monthOption) => ({
         value: String(monthOption.value || ""),
-        label: monthOption.label,
+        label: getMonthLabel(monthOption.value),
       })),
     ],
     [availableMonths],
@@ -359,24 +401,18 @@ const CustomerSOAPage = () => {
         ["Signature", "________________"],
       );
 
-      const monthKeysBase = (availableMonths || [])
-        .map((month) => String(month.value || "").trim())
-        .filter(Boolean);
+      const paymentMonths = monthly
+        .map((row) => String(row?.month || "").trim())
+        .filter(isValidMonthKey);
 
-      const fallbackMonths = new Set();
-      monthly.forEach((row) => {
-        if (row?.month) fallbackMonths.add(row.month);
-      });
-      washActivityEntries.forEach((row) => {
-        if (row?.billingMonth) fallbackMonths.add(row.billingMonth);
-      });
-      oneWashTransactions.forEach((row) => {
-        if (row?.billingMonth) fallbackMonths.add(row.billingMonth);
-      });
+      const fallbackMonths = new Set(
+        transactions
+          .map((row) => String(row?.billingMonth || "").trim())
+          .filter(isValidMonthKey),
+      );
 
-      const monthKeys = (monthKeysBase.length > 0
-        ? monthKeysBase
-        : Array.from(fallbackMonths)
+      const monthKeys = (
+        paymentMonths.length > 0 ? paymentMonths : Array.from(fallbackMonths)
       )
         .filter((key) => {
           if (soaData?.filters?.fromMonth && key < soaData.filters.fromMonth) {
@@ -535,24 +571,18 @@ const CustomerSOAPage = () => {
       const oneWashTransactions = soaData.oneWash?.transactions || [];
       const washActivityEntries = soaData.washActivity?.entries || [];
 
-      const monthKeysBase = (availableMonths || [])
-        .map((month) => String(month.value || "").trim())
-        .filter(Boolean);
+      const paymentMonths = monthly
+        .map((row) => String(row?.month || "").trim())
+        .filter(isValidMonthKey);
 
-      const fallbackMonths = new Set();
-      monthly.forEach((row) => {
-        if (row?.month) fallbackMonths.add(row.month);
-      });
-      washActivityEntries.forEach((row) => {
-        if (row?.billingMonth) fallbackMonths.add(row.billingMonth);
-      });
-      oneWashTransactions.forEach((row) => {
-        if (row?.billingMonth) fallbackMonths.add(row.billingMonth);
-      });
+      const fallbackMonths = new Set(
+        transactions
+          .map((row) => String(row?.billingMonth || "").trim())
+          .filter(isValidMonthKey),
+      );
 
-      const monthKeys = (monthKeysBase.length > 0
-        ? monthKeysBase
-        : Array.from(fallbackMonths)
+      const monthKeys = (
+        paymentMonths.length > 0 ? paymentMonths : Array.from(fallbackMonths)
       )
         .filter((key) => {
           if (soaData?.filters?.fromMonth && key < soaData.filters.fromMonth) {

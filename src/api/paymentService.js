@@ -37,12 +37,15 @@ export const paymentService = {
   },
 
   // Collect Payment
-  collect: async (id, amount, mode, date) => {
+  collect: async (id, amount, mode, date, receipt_no) => {
     const payload = {
       amount: Number(amount),
       payment_mode: mode,
       payment_date: date,
     };
+    if (receipt_no) {
+      payload.receipt_no = receipt_no;
+    }
     const response = await api.put(`/payments/${id}/collect`, payload);
     return response.data;
   },

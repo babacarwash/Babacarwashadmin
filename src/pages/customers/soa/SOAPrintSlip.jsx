@@ -23,10 +23,14 @@ const getMonthLabel = (monthKey) => {
   const [year, month] = String(monthKey).split("-").map(Number);
   if (!year || !month) return monthKey;
   const date = new Date(year, month - 1, 1);
+  date.setMonth(date.getMonth() + 1);
   return date
     .toLocaleString("default", { month: "short", year: "numeric" })
     .toUpperCase();
 };
+
+const isValidMonthKey = (value) =>
+  /^\d{4}-\d{2}$/.test(String(value || "").trim());
 
 const SOAPrintSlip = ({ soaData, selectedVehicleLabel, monthRangeLabel }) => {
   const customer = soaData?.customer || {};
@@ -35,30 +39,21 @@ const SOAPrintSlip = ({ soaData, selectedVehicleLabel, monthRangeLabel }) => {
   const transactions = soaData?.transactions || [];
   const washActivityEntries = soaData?.washActivity?.entries || [];
   const oneWashTransactions = soaData?.oneWash?.transactions || [];
-  const availableMonths = Array.isArray(soaData?.availableMonths)
-    ? soaData.availableMonths
-    : [];
   const fromMonth = soaData?.filters?.fromMonth || "";
   const toMonth = soaData?.filters?.toMonth || "";
 
-  const monthKeysBase = availableMonths
-    .map((month) => String(month.value || "").trim())
-    .filter(Boolean);
+  const paymentMonths = monthly
+    .map((row) => String(row?.month || "").trim())
+    .filter(isValidMonthKey);
 
-  const fallbackMonths = new Set();
-  monthly.forEach((row) => {
-    if (row?.month) fallbackMonths.add(row.month);
-  });
-  washActivityEntries.forEach((row) => {
-    if (row?.billingMonth) fallbackMonths.add(row.billingMonth);
-  });
-  oneWashTransactions.forEach((row) => {
-    if (row?.billingMonth) fallbackMonths.add(row.billingMonth);
-  });
+  const fallbackMonths = new Set(
+    transactions
+      .map((row) => String(row?.billingMonth || "").trim())
+      .filter(isValidMonthKey),
+  );
 
-  const monthKeys = (monthKeysBase.length > 0
-    ? monthKeysBase
-    : Array.from(fallbackMonths)
+  const monthKeys = (
+    paymentMonths.length > 0 ? paymentMonths : Array.from(fallbackMonths)
   )
     .filter((key) => {
       if (fromMonth && key < fromMonth) return false;
@@ -283,19 +278,13 @@ const SOAPrintSlip = ({ soaData, selectedVehicleLabel, monthRangeLabel }) => {
             </tr>
             <tr>
               <td style={styles.td}>Total Billed</td>
-              <td style={styles.tdRight}>
-                {formatMoney(summary.totalBilled)}
-              </td>
+              <td style={styles.tdRight}>{formatMoney(summary.totalBilled)}</td>
               <td style={styles.td}>Total Paid</td>
-              <td style={styles.tdRight}>
-                {formatMoney(summary.totalPaid)}
-              </td>
+              <td style={styles.tdRight}>{formatMoney(summary.totalPaid)}</td>
             </tr>
             <tr>
               <td style={styles.td}>Total Due</td>
-              <td style={styles.tdRight}>
-                {formatMoney(summary.totalDue)}
-              </td>
+              <td style={styles.tdRight}>{formatMoney(summary.totalDue)}</td>
               <td style={styles.td}>Collection %</td>
               <td style={styles.tdRight}>
                 {Number(summary.collectionPercent || 0).toFixed(1)}%

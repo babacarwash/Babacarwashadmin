@@ -46,6 +46,7 @@ import CustomDropdown from "../../components/ui/CustomDropdown";
 
 // API
 import { workerService } from "../../api/workerService";
+import { staffAppUpdateService } from "../../api/staffAppUpdateService";
 import usePagePermissions from "../../utils/usePagePermissions";
 
 const getDefaultAttendanceMonth = () => {
@@ -66,6 +67,8 @@ const Workers = () => {
   const [data, setData] = useState([]);
   const [activeTab, setActiveTab] = useState("active");
   const [currency, setCurrency] = useState("AED");
+  const [latestAppUpdate, setLatestAppUpdate] = useState(null);
+  const [latestUpdateLoading, setLatestUpdateLoading] = useState(false);
 
   // Filters State
   const [currentSearch, setCurrentSearch] = useState("");
@@ -134,10 +137,54 @@ const Workers = () => {
     loadFilterData();
   }, []);
 
+  useEffect(() => {
+    if (!pp.isAdmin) return;
+    const loadLatestUpdate = async () => {
+      setLatestUpdateLoading(true);
+      try {
+        const response = await staffAppUpdateService.latest();
+        setLatestAppUpdate(response.data || null);
+      } catch (e) {
+        setLatestAppUpdate(null);
+      } finally {
+        setLatestUpdateLoading(false);
+      }
+    };
+
+    loadLatestUpdate();
+  }, [pp.isAdmin]);
+
   // --- HELPERS ---
   const getDaysDiff = (date) => {
     if (!date) return null;
     return Math.ceil((new Date(date) - new Date()) / (1000 * 60 * 60 * 24));
+  };
+
+  const formatDateTime = (value) => {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const isLatestDownloaded = (row) => {
+    if (!latestAppUpdate) return false;
+    const downloadedId = row.appUpdate?.downloadedUpdateId;
+    if (downloadedId && latestAppUpdate._id) {
+      return String(downloadedId) === String(latestAppUpdate._id);
+    }
+    const downloadedVersion = row.appUpdate?.downloadedVersion;
+    return (
+      downloadedVersion &&
+      latestAppUpdate.version &&
+      String(downloadedVersion) === String(latestAppUpdate.version)
+    );
   };
 
   const buildServerFilters = () => ({
@@ -651,6 +698,63 @@ const Workers = () => {
           </span>
         </div>
       ),
+    },
+    {
+      key: "appUpdate",
+      header: "App Update",
+      className: "min-w-[240px]",
+      render: (r) => {
+        if (!pp.isAdmin) {
+          return (
+            <span className="text-xs text-slate-400 italic">Restricted</span>
+          );
+        }
+        const latestVersion = latestAppUpdate?.version;
+        const downloaded = isLatestDownloaded(r);
+        const downloadedAt = r.appUpdate?.downloadedAt;
+        const installedVersion = r.appUpdate?.installedVersion;
+        const installedAt = r.appUpdate?.installedAt;
+
+        return (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                  downloaded
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-rose-50 text-rose-600"
+                }`}
+              >
+                {downloaded ? (
+                  <CheckCircle className="w-3 h-3" />
+                ) : (
+                  <AlertCircle className="w-3 h-3" />
+                )}
+                {downloaded ? "Downloaded" : "Not Downloaded"}
+              </span>
+              {latestUpdateLoading && (
+                <span className="text-[10px] text-slate-400">Checking...</span>
+              )}
+              {!latestUpdateLoading && latestVersion && (
+                <span className="text-[10px] text-slate-400">
+                  Latest v{latestVersion}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+              <Clock className="w-3 h-3" />
+              DL {formatDateTime(downloadedAt)}
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+              <CheckCircle className="w-3 h-3 text-emerald-500" />
+              {installedVersion ? `Installed v${installedVersion}` : "Installed -"}
+              <span className="text-[10px] text-slate-400">
+                {formatDateTime(installedAt)}
+              </span>
+            </div>
+          </div>
+        );
+      },
     },
     {
       key: "assignments",
