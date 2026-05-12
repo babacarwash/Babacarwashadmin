@@ -95,7 +95,7 @@ const Header = ({ onMenuClick, theme, toggleTheme }) => {
     }
   };
 
-  // dsjkFetch notifications from backend
+  // dsjdkFetch notificationeds from backend
   const fetchNotifications = async () => {
     try {
       const data = await notificationService.getNotifications();
@@ -115,7 +115,7 @@ const Header = ({ onMenuClick, theme, toggleTheme }) => {
     }
   };
 
-  // Initialize notifications
+  // Initialize enotifications
   useEffect(() => {
     fetchNotifications();
     fetchUnreadCount();

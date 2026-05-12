@@ -53,7 +53,7 @@ const Sidebar = ({ isOpen, isMobile, onClose }) => {
     settings: false,
   });
 
-  // Fetch total unread messages for admin
+  // Fetch totadal unread messages for admin
   const fetchTotalUnreadMessages = async () => {
     if (userRole !== "admin" && userRole !== "manager") return;
 
