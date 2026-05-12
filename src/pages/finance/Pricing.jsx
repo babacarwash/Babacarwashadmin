@@ -216,25 +216,31 @@ const Pricing = () => {
       className: "text-right w-24 align-top py-4",
       render: (row) => (
         <div className="flex justify-end gap-2">
-          {pp.isActionVisible("edit") && <button
-            onClick={() => handleEdit(row)}
-            className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white border border-indigo-100 transition-all shadow-sm"
-            title="Edit"
-          >
-            <Edit2 className="w-4 h-4" />
-          </button>}
+          {pp.isActionVisible("edit") && (
+            <button
+              onClick={() => handleEdit(row)}
+              className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white border border-indigo-100 transition-all shadow-sm"
+              title="Edit"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+          )}
 
-          {pp.isActionVisible("delete") && <button
-            onClick={() => handleDelete(row)}
-            className="p-2 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-100 transition-all shadow-sm"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>}
+          {pp.isActionVisible("delete") && (
+            <button
+              onClick={() => handleDelete(row)}
+              className="p-2 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-100 transition-all shadow-sm"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       ),
     },
   ];
+
+  const mallPricing = data.filter((row) => row.service_type === "mall");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6 font-sans">
@@ -255,13 +261,15 @@ const Pricing = () => {
           </div>
         </div>
       </div> */}
-      {pp.isToolbarVisible("addPrice") && <button
-        onClick={handleCreate}
-        className="h-11 px-6 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl font-bold text-sm flex items-center gap-2 shadow-md hover:shadow-xl transition-all active:scale-95"
-      >
-        <Plus className="w-5 h-5" />
-        <span>Add New Price</span>
-      </button>}
+      {pp.isToolbarVisible("addPrice") && (
+        <button
+          onClick={handleCreate}
+          className="h-11 px-6 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl font-bold text-sm flex items-center gap-2 shadow-md hover:shadow-xl transition-all active:scale-95"
+        >
+          <Plus className="w-5 h-5" />
+          <span>Add New Price</span>
+        </button>
+      )}
       {/* </div> */}
 
       {/* TABLE SECTION */}
@@ -275,6 +283,94 @@ const Pricing = () => {
           onPageChange={(p) => fetchData(p, pagination.limit)}
           onLimitChange={(l) => fetchData(1, l)}
         />
+      </div>
+
+      {/* PRICING CONTROL SECTION */}
+      <div className="mt-6 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100">
+          <h2 className="text-lg font-bold text-slate-800">Pricing Control</h2>
+          <p className="text-sm text-slate-500">
+            Mall fixed amounts shown in staff payment collection
+          </p>
+        </div>
+        <div className="p-6">
+          {mallPricing.length === 0 ? (
+            <div className="text-sm text-slate-500">
+              No mall pricing configured yet.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {mallPricing.map((row) => {
+                const sedan = row.sedan || {};
+                const suv = row["4x4"] || {};
+                const washTypes =
+                  row.wash_types || sedan.wash_types || suv.wash_types || {};
+                const hasWashTypes = washTypes.inside || washTypes.outside;
+                const onetime = row.onetime || sedan.onetime || suv.onetime;
+                const paymentControl = row.payment_control || {};
+                const cashFixed = paymentControl.cash_fixed;
+                const cardFixed = paymentControl.card_fixed;
+                const formatControl = (value) =>
+                  value === true
+                    ? "Fixed"
+                    : value === false
+                      ? "Editable"
+                      : "Default";
+
+                return (
+                  <div
+                    key={row._id}
+                    className="border border-slate-200 rounded-xl p-4 bg-slate-50"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">
+                          Mall
+                        </p>
+                        <p className="text-sm font-bold text-slate-800">
+                          {row.mall?.name || "N/A"}
+                        </p>
+                      </div>
+                      <DollarSign className="w-4 h-4 text-blue-500" />
+                    </div>
+                    <div className="bg-white rounded-lg border border-slate-200 p-3">
+                      {hasWashTypes ? (
+                        <>
+                          <PriceItem label="Inside" value={washTypes.inside} />
+                          <PriceItem
+                            label="Outside"
+                            value={washTypes.outside}
+                          />
+                          <PriceItem label="Total" value={washTypes.total} />
+                        </>
+                      ) : onetime ? (
+                        <PriceItem label="Onetime" value={onetime} />
+                      ) : (
+                        <div className="text-xs text-slate-400 text-center py-2">
+                          No pricing configured
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-3 text-xs text-slate-600 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span>Cash</span>
+                        <span className="font-semibold">
+                          {formatControl(cashFixed)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Card</span>
+                        <span className="font-semibold">
+                          {formatControl(cardFixed)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* MODAL */}

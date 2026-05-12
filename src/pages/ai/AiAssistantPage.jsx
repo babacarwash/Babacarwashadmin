@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Loader2, Maximize2, Minimize2, Search, Trash2 } from "lucide-react";
+import {
+  Bot,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { aiAssistantService } from "../../api/aiAssistantService";
 import AiPaymentsResultTable from "./AiPaymentsResultTable";
 
@@ -1092,9 +1099,7 @@ const shouldUseConversationContext = ({ prompt = "", lastPerson = null }) => {
       text,
     );
 
-  const hasStrongContextPronoun = /\b(his|her|their|him|them)\b/i.test(
-    text,
-  );
+  const hasStrongContextPronoun = /\b(his|her|their|him|them)\b/i.test(text);
 
   if (hasExplicitGlobalFilter && !hasStrongContextPronoun) {
     return false;
@@ -1713,7 +1718,11 @@ const AiAssistantPage = () => {
                   onClick={toggleFullscreen}
                   className="inline-flex items-center gap-2 rounded-xl border border-white/30 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-white/90 transition-colors hover:bg-white/10"
                 >
-                  {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  {isFullscreen ? (
+                    <Minimize2 size={14} />
+                  ) : (
+                    <Maximize2 size={14} />
+                  )}
                   {isFullscreen ? "Exit Full" : "Full Screen"}
                 </button>
 

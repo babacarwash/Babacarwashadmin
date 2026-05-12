@@ -83,9 +83,13 @@ import SupervisorAttendance from "./pages/supervisor/Attendance";
 // Notifications
 import Notifications from "./pages/notifications/Notifications";
 import CustomerPushCampaign from "./pages/notifications/CustomerPushCampaign";
+import StaffPushCampaign from "./pages/notifications/StaffPushCampaign";
 import NotificationHistoryByNotification from "./pages/notifications/NotificationHistoryByNotification";
 import NotificationHistoryByCustomer from "./pages/notifications/NotificationHistoryByCustomer";
 import NotificationTracking from "./pages/notifications/NotificationTracking";
+import StaffNotificationHistoryByNotification from "./pages/notifications/StaffNotificationHistoryByNotification";
+import StaffNotificationHistoryByStaff from "./pages/notifications/StaffNotificationHistoryByStaff";
+import StaffNotificationTracking from "./pages/notifications/StaffNotificationTracking";
 
 // Activity Tracking
 import AdminTracking from "./pages/tracking/AdminTracking";
@@ -98,6 +102,8 @@ import AccessRequests from "./pages/admin-staff/AccessRequests";
 import AdminStaffActivityDetail from "./pages/admin-staff/AdminStaffActivityDetail";
 import AiAssistantPage from "./pages/ai/AiAssistantPage";
 import StaffAppUpdates from "./pages/workers-management/StaffAppUpdates";
+import SupportTickets from "./pages/support/SupportTickets";
+import SupportTicketDetail from "./pages/support/SupportTicketDetail";
 
 export const routes = [
   // --- OVERVIEW ---
@@ -371,6 +377,12 @@ export const routes = [
     icon: Bell,
   },
   {
+    path: "/notifications/staff-campaign",
+    title: "Staff Push Campaign",
+    component: <StaffPushCampaign />,
+    icon: Bell,
+  },
+  {
     path: "/notifications/history/notification-wise",
     title: "Notification-wise History",
     component: <NotificationHistoryByNotification />,
@@ -384,6 +396,21 @@ export const routes = [
     path: "/notifications/tracking",
     title: "Notification Tracking",
     component: <NotificationTracking />,
+  },
+  {
+    path: "/notifications/staff/history/notification-wise",
+    title: "Staff Notification-wise History",
+    component: <StaffNotificationHistoryByNotification />,
+  },
+  {
+    path: "/notifications/staff/history/staff-wise",
+    title: "Staff-wise History",
+    component: <StaffNotificationHistoryByStaff />,
+  },
+  {
+    path: "/notifications/staff/tracking",
+    title: "Staff Notification Tracking",
+    component: <StaffNotificationTracking />,
   },
 
   // --- ACTIVITY TRACKING (hidden route, no icon = no sidebar entry) ---
@@ -405,6 +432,17 @@ export const routes = [
     title: "Staff App Updates",
     component: <StaffAppUpdates />,
     icon: UploadCloud,
+  },
+  {
+    path: "/support-tickets",
+    title: "Support Tickets",
+    component: <SupportTickets />,
+    icon: HelpCircle,
+  },
+  {
+    path: "/support-tickets/:id",
+    title: "Support Ticket Detail",
+    component: <SupportTicketDetail />,
   },
   {
     path: "/admin-staff/:id/page-permissions",

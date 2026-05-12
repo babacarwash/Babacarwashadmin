@@ -20,6 +20,9 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
     mall: "",
     // Mall pricing method: "onetime" or "wash_types"
     mall_pricing_method: "onetime",
+    // Payment control (mall only)
+    cash_fixed: true,
+    card_fixed: false,
     // Unified pricing (no sedan/SUV split)
     onetime: "",
     once: "",
@@ -51,6 +54,11 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
         // Support both new flat format and legacy sedan/4x4 format
         const sedan = pricing.sedan || {};
         const suv = pricing["4x4"] || {};
+        const paymentControl = pricing.payment_control || {};
+        const cashFixed =
+          paymentControl.cash_fixed ?? pricing.cash_fixed ?? true;
+        const cardFixed =
+          paymentControl.card_fixed ?? pricing.card_fixed ?? false;
 
         // Determine pricing method based on data
         const hasFlatWashTypes =
@@ -70,6 +78,8 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
           service_type: pricing.service_type || "mobile",
           mall: pricing.mall?._id || pricing.mall || "",
           mall_pricing_method: mall_pricing_method,
+          cash_fixed: !!cashFixed,
+          card_fixed: !!cardFixed,
 
           onetime: pricing.onetime || sedan.onetime || suv.onetime || "",
           once: pricing.once || sedan.once || suv.once || "",
@@ -88,6 +98,8 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
           service_type: "mobile",
           mall: "",
           mall_pricing_method: "onetime",
+          cash_fixed: true,
+          card_fixed: false,
           onetime: "",
           once: "",
           twice: "",
@@ -102,8 +114,9 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
   }, [isOpen, pricing]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    const newFormData = { ...formData, [name]: value };
+    const { name, value, type, checked } = e.target;
+    const nextValue = type === "checkbox" ? checked : value;
+    const newFormData = { ...formData, [name]: nextValue };
 
     // Auto-calculate totals for mall wash types (unified)
     if (
@@ -135,6 +148,12 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
       const payload = {
         service_type: formData.service_type,
         ...(formData.service_type === "mall" && { mall: formData.mall }),
+        ...(formData.service_type === "mall" && {
+          payment_control: {
+            cash_fixed: !!formData.cash_fixed,
+            card_fixed: !!formData.card_fixed,
+          },
+        }),
 
         // Mall wash_types method: flat wash_types
         ...(formData.service_type === "mall" &&
@@ -309,6 +328,38 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
                 </motion.div>
               )}
 
+              {formData.service_type === "mall" && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <h4 className={sectionLabel}>Payment Control</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        name="cash_fixed"
+                        checked={!!formData.cash_fixed}
+                        onChange={handleChange}
+                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      Cash fixed
+                    </label>
+                    <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        name="card_fixed"
+                        checked={!!formData.card_fixed}
+                        onChange={handleChange}
+                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      Card fixed
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">
+                    When fixed, staff cannot edit the amount for that payment
+                    mode.
+                  </p>
+                </motion.div>
+              )}
+
               {/* Pricing (Unified - no sedan/SUV split) */}
               <div>
                 <h4 className={sectionLabel}>Pricing</h4>
@@ -317,38 +368,36 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
                 formData.mall_pricing_method === "wash_types" ? (
                   // Mall: Inside/Outside/Total pricing
                   <div className="grid grid-cols-3 gap-3">
-                    <CustomDropdown
-                      label="Inside"
-                      value={formData.wash_inside}
-                      onChange={(value) =>
-                        handleChange({
-                          target: { name: "wash_inside", value },
-                        })
-                      }
-                      options={[
-                        { value: "10", label: "10" },
-                        { value: "20", label: "20" },
-                        { value: "30", label: "30" },
-                        { value: "40", label: "40" },
-                      ]}
-                      placeholder="Select price"
-                    />
-                    <CustomDropdown
-                      label="Outside"
-                      value={formData.wash_outside}
-                      onChange={(value) =>
-                        handleChange({
-                          target: { name: "wash_outside", value },
-                        })
-                      }
-                      options={[
-                        { value: "10", label: "10" },
-                        { value: "20", label: "20" },
-                        { value: "30", label: "30" },
-                        { value: "40", label: "40" },
-                      ]}
-                      placeholder="Select price"
-                    />
+                    <div>
+                      <label className={labelClass}>Inside</label>
+                      <input
+                        type="number"
+                        name="wash_inside"
+                        value={formData.wash_inside}
+                        onChange={handleChange}
+                        className={
+                          inputGroupClass + " w-full text-sm font-bold"
+                        }
+                        placeholder="0"
+                        list="wash-price-options"
+                        step="0.01"
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Outside</label>
+                      <input
+                        type="number"
+                        name="wash_outside"
+                        value={formData.wash_outside}
+                        onChange={handleChange}
+                        className={
+                          inputGroupClass + " w-full text-sm font-bold"
+                        }
+                        placeholder="0"
+                        list="wash-price-options"
+                        step="0.01"
+                      />
+                    </div>
                     <div>
                       <label className={labelClass}>Total (Auto)</label>
                       <input
@@ -363,6 +412,12 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
                         placeholder="0"
                       />
                     </div>
+                    <datalist id="wash-price-options">
+                      <option value="10" />
+                      <option value="20" />
+                      <option value="30" />
+                      <option value="40" />
+                    </datalist>
                   </div>
                 ) : formData.service_type === "mall" &&
                   formData.mall_pricing_method === "onetime" ? (

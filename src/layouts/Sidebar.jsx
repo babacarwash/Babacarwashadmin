@@ -629,6 +629,16 @@ const Sidebar = ({ isOpen, isMobile, onClose }) => {
                   />
                 )}
 
+                {hasPermission("notifications", "view") && (
+                  <NavItem
+                    to="/notifications/staff-campaign"
+                    icon={Bell}
+                    label="Staff Push Campaign"
+                    onClick={handleLinkClick}
+                    isMobile={isMobile}
+                  />
+                )}
+
                 {/* SETTINGS SUBMENU */}
                 {hasPermission("settings", "view") && (
                   <li>
@@ -681,6 +691,13 @@ const Sidebar = ({ isOpen, isMobile, onClose }) => {
                       to="/admin/staff-app-updates"
                       icon={UploadCloud}
                       label="Staff App Updates"
+                      onClick={handleLinkClick}
+                      isMobile={isMobile}
+                    />
+                    <NavItem
+                      to="/support-tickets"
+                      icon={HelpCircle}
+                      label="Support Tickets"
                       onClick={handleLinkClick}
                       isMobile={isMobile}
                     />

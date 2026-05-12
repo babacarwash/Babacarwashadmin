@@ -62,8 +62,10 @@ const StaffAppUpdates = () => {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("version", version.trim());
-      if (buildNumber.trim()) formData.append("buildNumber", buildNumber.trim());
-      if (releaseNotes.trim()) formData.append("releaseNotes", releaseNotes.trim());
+      if (buildNumber.trim())
+        formData.append("buildNumber", buildNumber.trim());
+      if (releaseNotes.trim())
+        formData.append("releaseNotes", releaseNotes.trim());
 
       await staffAppUpdateService.upload(formData);
       toast.success("APK uploaded", { id: toastId });
@@ -122,7 +124,9 @@ const StaffAppUpdates = () => {
                 <UploadCloud className="w-5 h-5 text-emerald-600" />
               </div>
               <div>
-                <h2 className="text-lg font-black text-slate-900">Upload APK</h2>
+                <h2 className="text-lg font-black text-slate-900">
+                  Upload APK
+                </h2>
                 <p className="text-xs text-slate-500">
                   Add a new version for staff devices.
                 </p>
@@ -179,7 +183,9 @@ const StaffAppUpdates = () => {
                 />
                 <div className="mt-3 flex items-center gap-2 text-xs text-slate-600">
                   <FileBox className="w-4 h-4 text-emerald-600" />
-                  {file ? `${file.name} (${formatBytes(file.size)})` : "No file selected"}
+                  {file
+                    ? `${file.name} (${formatBytes(file.size)})`
+                    : "No file selected"}
                 </div>
               </div>
 
