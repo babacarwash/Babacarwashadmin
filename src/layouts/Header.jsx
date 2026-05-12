@@ -95,7 +95,7 @@ const Header = ({ onMenuClick, theme, toggleTheme }) => {
     }
   };
 
-  // Fetch notifications from backend
+  // dsjkFetch notifications from backend
   const fetchNotifications = async () => {
     try {
       const data = await notificationService.getNotifications();
