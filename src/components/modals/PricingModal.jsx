@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import { pricingService } from "../../api/pricingService";
 import { mallService } from "../../api/mallService";
 
-// Components
+// Componentsd
 import CustomDropdown from "../ui/CustomDropdown";
 
 const DEFAULT_CASH_OUTSIDE_BASE = 21;
