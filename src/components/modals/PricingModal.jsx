@@ -10,6 +10,11 @@ import { mallService } from "../../api/mallService";
 // Components
 import CustomDropdown from "../ui/CustomDropdown";
 
+const DEFAULT_CASH_OUTSIDE_BASE = 21;
+const DEFAULT_CASH_TOTAL_BASE = 31;
+const DEFAULT_CARD_OUTSIDE_BASE = 21.5;
+const DEFAULT_CARD_TOTAL_BASE = 31.5;
+
 const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [malls, setMalls] = useState([]);
@@ -23,6 +28,10 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
     // Payment control (mall only)
     cash_fixed: true,
     card_fixed: false,
+    cash_outside_base: DEFAULT_CASH_OUTSIDE_BASE,
+    cash_total_base: DEFAULT_CASH_TOTAL_BASE,
+    card_outside_base: DEFAULT_CARD_OUTSIDE_BASE,
+    card_total_base: DEFAULT_CARD_TOTAL_BASE,
     // Unified pricing (no sedan/SUV split)
     onetime: "",
     once: "",
@@ -59,6 +68,14 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
           paymentControl.cash_fixed ?? pricing.cash_fixed ?? true;
         const cardFixed =
           paymentControl.card_fixed ?? pricing.card_fixed ?? false;
+        const cashOutsideBase =
+          paymentControl.cash_outside_base ?? DEFAULT_CASH_OUTSIDE_BASE;
+        const cashTotalBase =
+          paymentControl.cash_total_base ?? DEFAULT_CASH_TOTAL_BASE;
+        const cardOutsideBase =
+          paymentControl.card_outside_base ?? DEFAULT_CARD_OUTSIDE_BASE;
+        const cardTotalBase =
+          paymentControl.card_total_base ?? DEFAULT_CARD_TOTAL_BASE;
 
         // Determine pricing method based on data
         const hasFlatWashTypes =
@@ -80,6 +97,10 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
           mall_pricing_method: mall_pricing_method,
           cash_fixed: !!cashFixed,
           card_fixed: !!cardFixed,
+          cash_outside_base: cashOutsideBase,
+          cash_total_base: cashTotalBase,
+          card_outside_base: cardOutsideBase,
+          card_total_base: cardTotalBase,
 
           onetime: pricing.onetime || sedan.onetime || suv.onetime || "",
           once: pricing.once || sedan.once || suv.once || "",
@@ -100,6 +121,10 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
           mall_pricing_method: "onetime",
           cash_fixed: true,
           card_fixed: false,
+          cash_outside_base: DEFAULT_CASH_OUTSIDE_BASE,
+          cash_total_base: DEFAULT_CASH_TOTAL_BASE,
+          card_outside_base: DEFAULT_CARD_OUTSIDE_BASE,
+          card_total_base: DEFAULT_CARD_TOTAL_BASE,
           onetime: "",
           once: "",
           twice: "",
@@ -139,6 +164,12 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
     setFormData(newFormData);
   };
 
+  const toNumberOrNull = (value) => {
+    if (value === "" || value === null || value === undefined) return null;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -152,6 +183,10 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
           payment_control: {
             cash_fixed: !!formData.cash_fixed,
             card_fixed: !!formData.card_fixed,
+            cash_outside_base: toNumberOrNull(formData.cash_outside_base),
+            cash_total_base: toNumberOrNull(formData.cash_total_base),
+            card_outside_base: toNumberOrNull(formData.card_outside_base),
+            card_total_base: toNumberOrNull(formData.card_total_base),
           },
         }),
 
@@ -357,6 +392,73 @@ const PricingModal = ({ isOpen, onClose, pricing, onSuccess }) => {
                     When fixed, staff cannot edit the amount for that payment
                     mode.
                   </p>
+                  <div className="mt-4">
+                    <p className="text-xs font-bold text-slate-500 uppercase">
+                      Tip Base Amounts (Outside / Total)
+                    </p>
+                    <div className="grid grid-cols-2 gap-3 mt-2">
+                      <div>
+                        <label className={labelClass}>Cash Outside</label>
+                        <input
+                          type="number"
+                          name="cash_outside_base"
+                          value={formData.cash_outside_base}
+                          onChange={handleChange}
+                          className={
+                            inputGroupClass + " w-full text-sm font-bold"
+                          }
+                          placeholder="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Cash Total</label>
+                        <input
+                          type="number"
+                          name="cash_total_base"
+                          value={formData.cash_total_base}
+                          onChange={handleChange}
+                          className={
+                            inputGroupClass + " w-full text-sm font-bold"
+                          }
+                          placeholder="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Card Outside</label>
+                        <input
+                          type="number"
+                          name="card_outside_base"
+                          value={formData.card_outside_base}
+                          onChange={handleChange}
+                          className={
+                            inputGroupClass + " w-full text-sm font-bold"
+                          }
+                          placeholder="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Card Total</label>
+                        <input
+                          type="number"
+                          name="card_total_base"
+                          value={formData.card_total_base}
+                          onChange={handleChange}
+                          className={
+                            inputGroupClass + " w-full text-sm font-bold"
+                          }
+                          placeholder="0"
+                          step="0.01"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-2">
+                      Paid above base becomes tip. Paid below base is rejected
+                      when fixed.
+                    </p>
+                  </div>
                 </motion.div>
               )}
 

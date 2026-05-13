@@ -242,6 +242,21 @@ const Pricing = () => {
 
   const mallPricing = data.filter((row) => row.service_type === "mall");
 
+  const formatMoney = (value) => {
+    if (value === null || value === undefined || value === "") return "-";
+    const num = Number(value);
+    if (!Number.isFinite(num)) return "-";
+    return num.toFixed(2);
+  };
+
+  const resolveBase = (value, fallback) =>
+    value === null || value === undefined || value === "" ? fallback : value;
+
+  const CASH_OUTSIDE_BASE = 21;
+  const CASH_TOTAL_BASE = 31;
+  const CARD_OUTSIDE_BASE = 21.5;
+  const CARD_TOTAL_BASE = 31.5;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6 font-sans">
       {/* HEADER SECTION */}
@@ -310,12 +325,42 @@ const Pricing = () => {
                 const paymentControl = row.payment_control || {};
                 const cashFixed = paymentControl.cash_fixed;
                 const cardFixed = paymentControl.card_fixed;
+                const cashOutsideBase = resolveBase(
+                  paymentControl.cash_outside_base,
+                  CASH_OUTSIDE_BASE,
+                );
+                const cashTotalBase = resolveBase(
+                  paymentControl.cash_total_base,
+                  CASH_TOTAL_BASE,
+                );
+                const cardOutsideBase = resolveBase(
+                  paymentControl.card_outside_base,
+                  CARD_OUTSIDE_BASE,
+                );
+                const cardTotalBase = resolveBase(
+                  paymentControl.card_total_base,
+                  CARD_TOTAL_BASE,
+                );
                 const formatControl = (value) =>
                   value === true
                     ? "Fixed"
                     : value === false
                       ? "Editable"
-                      : "Default";
+                      : "Default (Fixed)";
+                const effectiveCashFixed = cashFixed !== false;
+                const effectiveCardFixed = cardFixed !== false;
+                const cashStatusText = effectiveCashFixed
+                  ? "Fixed (no change)"
+                  : "Editable (can change)";
+                const cardStatusText = effectiveCardFixed
+                  ? "Fixed (no change)"
+                  : "Editable (can change)";
+                const cashBasePairText = `${formatMoney(
+                  cashOutsideBase,
+                )} / ${formatMoney(cashTotalBase)}`;
+                const cardBasePairText = `${formatMoney(
+                  cardOutsideBase,
+                )} / ${formatMoney(cardTotalBase)}`;
 
                 return (
                   <div
@@ -363,6 +408,41 @@ const Pricing = () => {
                         <span className="font-semibold">
                           {formatControl(cardFixed)}
                         </span>
+                      </div>
+                    </div>
+                    <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-[11px] text-slate-600 space-y-1">
+                      <div className="text-xs font-semibold text-slate-700">
+                        Tip Calculation (Mall)
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Cash</span>
+                        <span className="font-semibold">{cashStatusText}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Cash Base (Outside / Total)</span>
+                        <span className="font-semibold">
+                          {cashBasePairText}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Card</span>
+                        <span className="font-semibold">{cardStatusText}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Card Base (Outside / Total)</span>
+                        <span className="font-semibold">
+                          {cardBasePairText}
+                        </span>
+                      </div>
+                      <div className="pt-1 text-[10px] text-slate-500">
+                        Tip rule: Paid &gt; Base =&gt; Tip = Paid - Base. Paid =
+                        Base =&gt; Tip 0. Paid &lt; Base (when Fixed) =&gt;
+                        payment rejected.
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        Outside/Total always use fixed base for tips. If
+                        Editable, base follows paid amount for other wash types
+                        and tip stays 0.
                       </div>
                     </div>
                   </div>
