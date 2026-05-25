@@ -270,7 +270,7 @@ const drawHeader = (
   }
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.2);
+  doc.setFontSize(8.8);
   doc.text(
     truncateToWidth(doc, headerData.companyName.toUpperCase(), width - 11),
     x + 10,
@@ -280,7 +280,7 @@ const drawHeader = (
 
   const drawRegularRow = (label, value) => {
     doc.rect(x, y, width, rowHeight);
-    doc.setFontSize(6.2);
+    doc.setFontSize(8.8);
     drawInlineField({
       doc,
       label,
@@ -299,7 +299,7 @@ const drawHeader = (
   const splitX = x + width * 0.65;
   doc.line(splitX, y, splitX, y + rowHeight);
 
-  doc.setFontSize(6.2);
+  doc.setFontSize(8.8);
   drawInlineField({
     doc,
     label: "Trade",
@@ -393,7 +393,7 @@ const drawAttendanceGrid = (
   }
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(5.6);
+  doc.setFontSize(8.2);
 
   let textX = x;
   headers.forEach((head, idx) => {
@@ -402,7 +402,7 @@ const drawAttendanceGrid = (
   });
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(5.8);
+  doc.setFontSize(8.4);
 
   rows.forEach((row, idx) => {
     if (!row.isCurrentMonthDay) return;
@@ -434,7 +434,7 @@ const drawSummary = (doc, startY, offsetX, designMarginMm) => {
   doc.rect(x, y, width, row1);
   doc.line(x + width / 2, y, x + width / 2, y + row1);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.1);
+  doc.setFontSize(8.6);
   doc.text("Employee Signature: .....................", x + 2, y + 4.8);
   doc.text("Approved By: .....................", x + width / 2 + 2, y + 4.8);
 
