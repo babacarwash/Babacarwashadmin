@@ -2,7 +2,7 @@ import { jsPDF } from "jspdf";
 
 const DESIGN_PAGE_WIDTH_MM = 110;
 const DESIGN_PAGE_HEIGHT_MM = 220;
-const DESIGN_MARGIN_MM = 3;
+const DEFAULT_DESIGN_MARGIN_MM = 0;
 const LOGO_FILE_PATH = "/carwash.jpeg";
 
 export const DEFAULT_ATTENDANCE_DOWNLOAD_PRESET = "DL";
@@ -10,24 +10,11 @@ export const DEFAULT_ATTENDANCE_DOWNLOAD_PRESET = "DL";
 const PRESET_CONFIG = {
   DL: {
     key: "DL",
-    label: "DL (110 x 220 mm) - Default",
+    label: "DL (110 x 220 mm)",
     width: 110,
     height: 220,
     suffix: "DL",
-  },
-  A4: {
-    key: "A4",
-    label: "A4 Portrait (210 x 297 mm)",
-    width: 210,
-    height: 297,
-    suffix: "A4",
-  },
-  LETTER: {
-    key: "LETTER",
-    label: "Letter Portrait (216 x 279 mm)",
-    width: 216,
-    height: 279,
-    suffix: "LETTER",
+    designMarginMm: 1.5,
   },
 };
 
@@ -71,6 +58,7 @@ const SUMMARY_TOTAL_HEIGHT_MM =
   SUMMARY_ROW2_HEIGHT_MM +
   SUMMARY_ROW3_HEIGHT_MM +
   SUMMARY_ROW4_HEIGHT_MM;
+const TABLE_COLUMN_PERCENTS = [0.1, 0.11, 0.18, 0.18, 0.12, 0.16, 0.15];
 
 let cachedLogoDataUrl = null;
 
@@ -254,13 +242,14 @@ const drawHeader = (
   logoDataUrl,
   offsetX,
   offsetY,
+  designMarginMm,
 ) => {
-  const x = offsetX + DESIGN_MARGIN_MM;
-  const width = DESIGN_PAGE_WIDTH_MM - DESIGN_MARGIN_MM * 2;
+  const x = offsetX + designMarginMm;
+  const width = DESIGN_PAGE_WIDTH_MM - designMarginMm * 2;
   const rowHeight = 5.6;
   const logoRowHeight = 9;
 
-  let y = offsetY + DESIGN_MARGIN_MM;
+  let y = offsetY + designMarginMm;
 
   doc.rect(x, y, width, logoRowHeight);
   if (logoDataUrl) {
@@ -334,17 +323,34 @@ const drawHeader = (
   return y;
 };
 
-const drawAttendanceGrid = (doc, monthDate, startY, offsetX, offsetY) => {
-  const x = offsetX + DESIGN_MARGIN_MM;
-  const width = DESIGN_PAGE_WIDTH_MM - DESIGN_MARGIN_MM * 2;
+const drawAttendanceGrid = (
+  doc,
+  monthDate,
+  startY,
+  offsetX,
+  offsetY,
+  designMarginMm,
+) => {
+  const x = offsetX + designMarginMm;
+  const width = DESIGN_PAGE_WIDTH_MM - designMarginMm * 2;
 
   const headerHeight = TABLE_HEADER_HEIGHT_MM;
   const rows = getAttendanceRows(monthDate);
-  const contentBottomY = offsetY + DESIGN_PAGE_HEIGHT_MM - DESIGN_MARGIN_MM;
+  const contentBottomY = offsetY + DESIGN_PAGE_HEIGHT_MM - designMarginMm;
   const usableRowsHeight =
     contentBottomY - startY - SUMMARY_TOTAL_HEIGHT_MM - headerHeight;
   const rowHeight = Math.max(usableRowsHeight / rows.length, 4.1);
-  const colWidths = [10, 11, 18, 18, 12, 16, 17];
+  const colWidths = [];
+  let consumedWidth = 0;
+  TABLE_COLUMN_PERCENTS.forEach((pct, idx) => {
+    if (idx === TABLE_COLUMN_PERCENTS.length - 1) {
+      colWidths.push(width - consumedWidth);
+    } else {
+      const nextWidth = width * pct;
+      colWidths.push(nextWidth);
+      consumedWidth += nextWidth;
+    }
+  });
   const headers = [
     "Date",
     "DAY",
@@ -414,9 +420,9 @@ const drawAttendanceGrid = (doc, monthDate, startY, offsetX, offsetY) => {
   return startY + headerHeight + rows.length * rowHeight;
 };
 
-const drawSummary = (doc, startY, offsetX) => {
-  const x = offsetX + DESIGN_MARGIN_MM;
-  const width = DESIGN_PAGE_WIDTH_MM - DESIGN_MARGIN_MM * 2;
+const drawSummary = (doc, startY, offsetX, designMarginMm) => {
+  const x = offsetX + designMarginMm;
+  const width = DESIGN_PAGE_WIDTH_MM - designMarginMm * 2;
 
   const row1 = SUMMARY_ROW1_HEIGHT_MM;
   const row2 = SUMMARY_ROW2_HEIGHT_MM;
@@ -461,14 +467,15 @@ const drawAttendanceCard = (
   offsetX,
   offsetY,
   workerOverride,
+  designMarginMm,
 ) => {
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.25);
   doc.rect(
-    offsetX + DESIGN_MARGIN_MM,
-    offsetY + DESIGN_MARGIN_MM,
-    DESIGN_PAGE_WIDTH_MM - DESIGN_MARGIN_MM * 2,
-    DESIGN_PAGE_HEIGHT_MM - DESIGN_MARGIN_MM * 2,
+    offsetX + designMarginMm,
+    offsetY + designMarginMm,
+    DESIGN_PAGE_WIDTH_MM - designMarginMm * 2,
+    DESIGN_PAGE_HEIGHT_MM - designMarginMm * 2,
   );
 
   const headerData = getAttendanceHeaderData(worker, workerOverride);
@@ -479,6 +486,7 @@ const drawAttendanceCard = (
     logoDataUrl,
     offsetX,
     offsetY,
+    designMarginMm,
   );
   const summaryStartY = drawAttendanceGrid(
     doc,
@@ -486,8 +494,9 @@ const drawAttendanceCard = (
     tableStartY,
     offsetX,
     offsetY,
+    designMarginMm,
   );
-  drawSummary(doc, summaryStartY, offsetX);
+  drawSummary(doc, summaryStartY, offsetX, designMarginMm);
 };
 
 export const generateMonthlyAttendanceSheetsPdf = async ({
@@ -496,6 +505,7 @@ export const generateMonthlyAttendanceSheetsPdf = async ({
   fileNamePrefix = "Attendance_Sheets",
   downloadPresetKey = DEFAULT_ATTENDANCE_DOWNLOAD_PRESET,
   workerOverrides = {},
+  pageOffsetMm = { x: 0, y: 0 },
   action = "download",
 }) => {
   if (!Array.isArray(workers) || workers.length === 0) {
@@ -505,6 +515,11 @@ export const generateMonthlyAttendanceSheetsPdf = async ({
   const monthDate = parseAttendanceMonthInput(monthValue);
   const logoDataUrl = await loadLogoDataUrl();
   const preset = getAttendanceDownloadPreset(downloadPresetKey);
+  const offsetXMm = Number.isFinite(pageOffsetMm?.x) ? pageOffsetMm.x : 0;
+  const offsetYMm = Number.isFinite(pageOffsetMm?.y) ? pageOffsetMm.y : 0;
+  const designMarginMm = Number.isFinite(preset.designMarginMm)
+    ? preset.designMarginMm
+    : DEFAULT_DESIGN_MARGIN_MM;
 
   const doc = new jsPDF({
     orientation: "portrait",
@@ -513,8 +528,10 @@ export const generateMonthlyAttendanceSheetsPdf = async ({
     compress: true,
   });
 
-  const offsetX = Math.max((preset.width - DESIGN_PAGE_WIDTH_MM) / 2, 0);
-  const offsetY = Math.max((preset.height - DESIGN_PAGE_HEIGHT_MM) / 2, 0);
+  const offsetX =
+    Math.max((preset.width - DESIGN_PAGE_WIDTH_MM) / 2, 0) + offsetXMm;
+  const offsetY =
+    Math.max((preset.height - DESIGN_PAGE_HEIGHT_MM) / 2, 0) + offsetYMm;
 
   const sortedWorkers = [...workers].sort((a, b) =>
     String(a?.name || "").localeCompare(String(b?.name || "")),
@@ -538,6 +555,7 @@ export const generateMonthlyAttendanceSheetsPdf = async ({
       offsetX,
       offsetY,
       override,
+      designMarginMm,
     );
   });
 

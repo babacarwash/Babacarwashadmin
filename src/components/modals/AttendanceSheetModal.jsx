@@ -32,6 +32,38 @@ const getSafeFileNamePart = (value = "") => {
   return safe || "Worker";
 };
 
+const ATTENDANCE_PRESET_STORAGE_KEY = "attendanceSheetDownloadPreset";
+const ATTENDANCE_OFFSET_X_STORAGE_KEY = "attendanceSheetOffsetX";
+const ATTENDANCE_OFFSET_Y_STORAGE_KEY = "attendanceSheetOffsetY";
+
+const parseStoredNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const getStoredPresetKey = () => {
+  if (typeof window === "undefined") {
+    return DEFAULT_ATTENDANCE_DOWNLOAD_PRESET;
+  }
+
+  const stored = window.localStorage.getItem(ATTENDANCE_PRESET_STORAGE_KEY);
+  const isValid = ATTENDANCE_DOWNLOAD_PRESETS.some(
+    (preset) => preset.key === stored,
+  );
+
+  return isValid ? stored : DEFAULT_ATTENDANCE_DOWNLOAD_PRESET;
+};
+
+const getStoredOffsetMm = (key) => {
+  if (typeof window === "undefined") return 0;
+  return parseStoredNumber(window.localStorage.getItem(key), 0);
+};
+
+const saveStoredValue = (key, value) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(key, String(value));
+};
+
 const InfoRow = ({ label, value }) => (
   <div className="border-b border-black h-[5.6mm] px-[1.2mm] flex items-center">
     <span className="font-bold mr-[1mm]">{label} :</span>
@@ -184,13 +216,16 @@ const AttendanceCardPreview = ({ headerData, monthDate }) => {
   );
 };
 
-const PREVIEW_WIDTH_PX = 110 * 3.7795275591;
-const PREVIEW_HEIGHT_PX = 220 * 3.7795275591;
+const MM_TO_PX = 3.7795275591;
+const PREVIEW_WIDTH_PX = 110 * MM_TO_PX;
+const PREVIEW_HEIGHT_PX = 220 * MM_TO_PX;
 const MIN_PREVIEW_SCALE = 0.2;
 
-const AttendancePreviewViewport = ({ children }) => {
+const AttendancePreviewViewport = ({ children, offsetMm = { x: 0, y: 0 } }) => {
   const containerRef = useRef(null);
   const [scale, setScale] = useState(1);
+  const offsetX = Number.isFinite(offsetMm?.x) ? offsetMm.x : 0;
+  const offsetY = Number.isFinite(offsetMm?.y) ? offsetMm.y : 0;
 
   useEffect(() => {
     const updateScale = () => {
@@ -246,7 +281,7 @@ const AttendancePreviewViewport = ({ children }) => {
           style={{
             width: `${PREVIEW_WIDTH_PX}px`,
             height: `${PREVIEW_HEIGHT_PX}px`,
-            transform: `scale(${scale})`,
+            transform: `translate(${offsetX * MM_TO_PX}px, ${offsetY * MM_TO_PX}px) scale(${scale})`,
             transformOrigin: "top center",
           }}
         >
@@ -268,8 +303,12 @@ const AttendanceSheetModal = ({
   const [downloadAllLoading, setDownloadAllLoading] = useState(false);
   const [printCurrentLoading, setPrintCurrentLoading] = useState(false);
   const [printAllLoading, setPrintAllLoading] = useState(false);
-  const [downloadPreset, setDownloadPreset] = useState(
-    DEFAULT_ATTENDANCE_DOWNLOAD_PRESET,
+  const [downloadPreset, setDownloadPreset] = useState(getStoredPresetKey);
+  const [pageOffsetX, setPageOffsetX] = useState(() =>
+    getStoredOffsetMm(ATTENDANCE_OFFSET_X_STORAGE_KEY),
+  );
+  const [pageOffsetY, setPageOffsetY] = useState(() =>
+    getStoredOffsetMm(ATTENDANCE_OFFSET_Y_STORAGE_KEY),
   );
   const [isEditing, setIsEditing] = useState(false);
   const [workerOverrides, setWorkerOverrides] = useState({});
@@ -277,7 +316,9 @@ const AttendanceSheetModal = ({
   useEffect(() => {
     if (!isOpen) return;
     setCurrentIndex(0);
-    setDownloadPreset(DEFAULT_ATTENDANCE_DOWNLOAD_PRESET);
+    setDownloadPreset(getStoredPresetKey());
+    setPageOffsetX(getStoredOffsetMm(ATTENDANCE_OFFSET_X_STORAGE_KEY));
+    setPageOffsetY(getStoredOffsetMm(ATTENDANCE_OFFSET_Y_STORAGE_KEY));
     setIsEditing(false);
     setWorkerOverrides({});
   }, [isOpen, monthValue]);
@@ -352,6 +393,7 @@ const AttendanceSheetModal = ({
         )}`,
         downloadPresetKey: downloadPreset,
         workerOverrides: scopedOverrides,
+        pageOffsetMm: { x: pageOffsetX, y: pageOffsetY },
       });
       toast.success(
         `Downloaded attendance sheet for ${currentHeaderData.employeeName || "worker"}`,
@@ -373,6 +415,7 @@ const AttendanceSheetModal = ({
         monthValue,
         downloadPresetKey: downloadPreset,
         workerOverrides,
+        pageOffsetMm: { x: pageOffsetX, y: pageOffsetY },
       });
       toast.success(
         `Downloaded attendance sheets for ${validWorkers.length} workers`,
@@ -401,6 +444,7 @@ const AttendanceSheetModal = ({
         )}`,
         downloadPresetKey: downloadPreset,
         workerOverrides: scopedOverrides,
+        pageOffsetMm: { x: pageOffsetX, y: pageOffsetY },
         action: "print",
       });
       toast.success("Print dialog opened for current attendance sheet");
@@ -421,6 +465,7 @@ const AttendanceSheetModal = ({
         monthValue,
         downloadPresetKey: downloadPreset,
         workerOverrides,
+        pageOffsetMm: { x: pageOffsetX, y: pageOffsetY },
         action: "print",
       });
       toast.success(
@@ -431,6 +476,25 @@ const AttendanceSheetModal = ({
     } finally {
       setPrintAllLoading(false);
     }
+  };
+
+  const handlePresetChange = (event) => {
+    const nextPreset = event.target.value;
+    setDownloadPreset(nextPreset);
+    saveStoredValue(ATTENDANCE_PRESET_STORAGE_KEY, nextPreset);
+  };
+
+  const handleOffsetChange = (setter, storageKey) => (event) => {
+    const nextValue = parseStoredNumber(event.target.value, 0);
+    setter(nextValue);
+    saveStoredValue(storageKey, nextValue);
+  };
+
+  const resetOffsets = () => {
+    setPageOffsetX(0);
+    setPageOffsetY(0);
+    saveStoredValue(ATTENDANCE_OFFSET_X_STORAGE_KEY, 0);
+    saveStoredValue(ATTENDANCE_OFFSET_Y_STORAGE_KEY, 0);
   };
 
   return (
@@ -466,7 +530,9 @@ const AttendanceSheetModal = ({
                 <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-5 h-full min-h-0">
                   <div className="bg-white rounded-xl border border-slate-200 p-4 h-full min-h-0 overflow-hidden">
                     {currentWorker ? (
-                      <AttendancePreviewViewport>
+                      <AttendancePreviewViewport
+                        offsetMm={{ x: pageOffsetX, y: pageOffsetY }}
+                      >
                         <AttendanceCardPreview
                           headerData={currentHeaderData}
                           monthDate={monthDate}
@@ -538,7 +604,7 @@ const AttendanceSheetModal = ({
                       </label>
                       <select
                         value={downloadPreset}
-                        onChange={(e) => setDownloadPreset(e.target.value)}
+                        onChange={handlePresetChange}
                         className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
                       >
                         {ATTENDANCE_DOWNLOAD_PRESETS.map((preset) => (
@@ -547,6 +613,57 @@ const AttendanceSheetModal = ({
                           </option>
                         ))}
                       </select>
+                      <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                        Saved for next time.
+                      </p>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-lg p-3 space-y-2">
+                      <p className="text-[11px] uppercase tracking-wider font-black text-slate-400">
+                        Alignment (mm)
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-semibold text-slate-500">
+                            Horizontal (X)
+                          </label>
+                          <input
+                            type="number"
+                            value={pageOffsetX}
+                            onChange={handleOffsetChange(
+                              setPageOffsetX,
+                              ATTENDANCE_OFFSET_X_STORAGE_KEY,
+                            )}
+                            step="0.5"
+                            className="mt-1 w-full h-9 rounded-lg border border-slate-200 px-2 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-slate-500">
+                            Vertical (Y)
+                          </label>
+                          <input
+                            type="number"
+                            value={pageOffsetY}
+                            onChange={handleOffsetChange(
+                              setPageOffsetY,
+                              ATTENDANCE_OFFSET_Y_STORAGE_KEY,
+                            )}
+                            step="0.5"
+                            className="mt-1 w-full h-9 rounded-lg border border-slate-200 px-2 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[10px] font-semibold text-slate-400">
+                        Positive X moves right; positive Y moves down. Saved for
+                        next time.
+                      </p>
+                      <button
+                        onClick={resetOffsets}
+                        className="w-full h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] uppercase tracking-wide"
+                      >
+                        Reset Alignment
+                      </button>
                     </div>
 
                     <button
