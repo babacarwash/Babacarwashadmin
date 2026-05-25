@@ -10,7 +10,7 @@ import { attendanceService } from "../../api/attendanceService";
 import { locationService } from "../../api/locationService";
 import { buildingService } from "../../api/buildingService";
 
-// Redux
+// Reduxj
 import { assignWorker } from "../../redux/slices/bookingSlice";
 
 const AssignWorkerModal = ({ isOpen, onClose, booking, onSuccess }) => {
