@@ -4,6 +4,7 @@ const DESIGN_PAGE_WIDTH_MM = 110;
 const DESIGN_PAGE_HEIGHT_MM = 220;
 const DEFAULT_DESIGN_MARGIN_MM = 0;
 const LOGO_FILE_PATH = "/carwash.jpeg";
+const DEFAULT_ATTENDANCE_TEXT_SCALE = 1;
 
 export const DEFAULT_ATTENDANCE_DOWNLOAD_PRESET = "DL";
 
@@ -243,11 +244,14 @@ const drawHeader = (
   offsetX,
   offsetY,
   designMarginMm,
+  fontScale,
 ) => {
   const x = offsetX + designMarginMm;
   const width = DESIGN_PAGE_WIDTH_MM - designMarginMm * 2;
   const rowHeight = 5.6;
   const logoRowHeight = 9;
+  const baseFontSize = 9.6;
+  const scaleFontSize = (value) => value * fontScale;
 
   let y = offsetY + designMarginMm;
 
@@ -270,7 +274,7 @@ const drawHeader = (
   }
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.8);
+  doc.setFontSize(scaleFontSize(9.8));
   doc.text(
     truncateToWidth(doc, headerData.companyName.toUpperCase(), width - 11),
     x + 10,
@@ -280,7 +284,7 @@ const drawHeader = (
 
   const drawRegularRow = (label, value) => {
     doc.rect(x, y, width, rowHeight);
-    doc.setFontSize(8.8);
+    doc.setFontSize(scaleFontSize(baseFontSize));
     drawInlineField({
       doc,
       label,
@@ -299,7 +303,7 @@ const drawHeader = (
   const splitX = x + width * 0.65;
   doc.line(splitX, y, splitX, y + rowHeight);
 
-  doc.setFontSize(8.8);
+  doc.setFontSize(scaleFontSize(baseFontSize));
   drawInlineField({
     doc,
     label: "Trade",
@@ -330,6 +334,7 @@ const drawAttendanceGrid = (
   offsetX,
   offsetY,
   designMarginMm,
+  fontScale,
 ) => {
   const x = offsetX + designMarginMm;
   const width = DESIGN_PAGE_WIDTH_MM - designMarginMm * 2;
@@ -384,7 +389,6 @@ const drawAttendanceGrid = (
       );
     }
   });
-
   doc.line(x, startY + headerHeight, x + width, startY + headerHeight);
 
   for (let i = 1; i <= rows.length; i += 1) {
@@ -393,7 +397,7 @@ const drawAttendanceGrid = (
   }
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.2);
+  doc.setFontSize(9.1 * fontScale);
 
   let textX = x;
   headers.forEach((head, idx) => {
@@ -402,7 +406,7 @@ const drawAttendanceGrid = (
   });
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.4);
+  doc.setFontSize(9 * fontScale);
 
   rows.forEach((row, idx) => {
     if (!row.isCurrentMonthDay) return;
@@ -420,7 +424,7 @@ const drawAttendanceGrid = (
   return startY + headerHeight + rows.length * rowHeight;
 };
 
-const drawSummary = (doc, startY, offsetX, designMarginMm) => {
+const drawSummary = (doc, startY, offsetX, designMarginMm, fontScale) => {
   const x = offsetX + designMarginMm;
   const width = DESIGN_PAGE_WIDTH_MM - designMarginMm * 2;
 
@@ -434,7 +438,7 @@ const drawSummary = (doc, startY, offsetX, designMarginMm) => {
   doc.rect(x, y, width, row1);
   doc.line(x + width / 2, y, x + width / 2, y + row1);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.6);
+  doc.setFontSize(9.4 * fontScale);
   doc.text("Employee Signature: .....................", x + 2, y + 4.8);
   doc.text("Approved By: .....................", x + width / 2 + 2, y + 4.8);
 
@@ -468,6 +472,7 @@ const drawAttendanceCard = (
   offsetY,
   workerOverride,
   designMarginMm,
+  fontScale,
 ) => {
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.25);
@@ -487,6 +492,7 @@ const drawAttendanceCard = (
     offsetX,
     offsetY,
     designMarginMm,
+    fontScale,
   );
   const summaryStartY = drawAttendanceGrid(
     doc,
@@ -495,8 +501,9 @@ const drawAttendanceCard = (
     offsetX,
     offsetY,
     designMarginMm,
+    fontScale,
   );
-  drawSummary(doc, summaryStartY, offsetX, designMarginMm);
+  drawSummary(doc, summaryStartY, offsetX, designMarginMm, fontScale);
 };
 
 export const generateMonthlyAttendanceSheetsPdf = async ({
@@ -506,6 +513,7 @@ export const generateMonthlyAttendanceSheetsPdf = async ({
   downloadPresetKey = DEFAULT_ATTENDANCE_DOWNLOAD_PRESET,
   workerOverrides = {},
   pageOffsetMm = { x: 0, y: 0 },
+  fontScale = DEFAULT_ATTENDANCE_TEXT_SCALE,
   action = "download",
 }) => {
   if (!Array.isArray(workers) || workers.length === 0) {
@@ -517,6 +525,8 @@ export const generateMonthlyAttendanceSheetsPdf = async ({
   const preset = getAttendanceDownloadPreset(downloadPresetKey);
   const offsetXMm = Number.isFinite(pageOffsetMm?.x) ? pageOffsetMm.x : 0;
   const offsetYMm = Number.isFinite(pageOffsetMm?.y) ? pageOffsetMm.y : 0;
+  const safeFontScale =
+    Number.isFinite(fontScale) && fontScale > 0 ? fontScale : 1;
   const designMarginMm = Number.isFinite(preset.designMarginMm)
     ? preset.designMarginMm
     : DEFAULT_DESIGN_MARGIN_MM;
@@ -556,6 +566,7 @@ export const generateMonthlyAttendanceSheetsPdf = async ({
       offsetY,
       override,
       designMarginMm,
+      safeFontScale,
     );
   });
 

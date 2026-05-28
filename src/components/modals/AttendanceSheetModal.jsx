@@ -23,6 +23,7 @@ import {
   getAttendanceWorkerKey,
   parseAttendanceMonthInput,
 } from "../../utils/attendanceSheetPdf";
+import { staffProfileService } from "../../api/staffProfileService";
 
 const getSafeFileNamePart = (value = "") => {
   const safe = String(value)
@@ -35,6 +36,16 @@ const getSafeFileNamePart = (value = "") => {
 const ATTENDANCE_PRESET_STORAGE_KEY = "attendanceSheetDownloadPreset";
 const ATTENDANCE_OFFSET_X_STORAGE_KEY = "attendanceSheetOffsetX";
 const ATTENDANCE_OFFSET_Y_STORAGE_KEY = "attendanceSheetOffsetY";
+const ATTENDANCE_FONT_SCALE_STORAGE_KEY = "attendanceSheetFontScale";
+const DEFAULT_ATTENDANCE_FONT_SCALE = 1;
+
+const FONT_SCALE_OPTIONS = [
+  { label: "Small", value: 0.9 },
+  { label: "Normal", value: 1 },
+  { label: "Large", value: 1.1 },
+  { label: "XL", value: 1.2 },
+  { label: "XXL", value: 1.3 },
+];
 
 const parseStoredNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -59,36 +70,59 @@ const getStoredOffsetMm = (key) => {
   return parseStoredNumber(window.localStorage.getItem(key), 0);
 };
 
+const getStoredFontScale = () => {
+  if (typeof window === "undefined") return DEFAULT_ATTENDANCE_FONT_SCALE;
+  return parseStoredNumber(
+    window.localStorage.getItem(ATTENDANCE_FONT_SCALE_STORAGE_KEY),
+    DEFAULT_ATTENDANCE_FONT_SCALE,
+  );
+};
+
 const saveStoredValue = (key, value) => {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(key, String(value));
 };
 
-const InfoRow = ({ label, value }) => (
-  <div className="border-b border-black h-[5.6mm] px-[1.2mm] flex items-center">
+const InfoRow = ({ label, value, fontScale = 1 }) => (
+  <div
+    className="border-b border-black h-[5.6mm] px-[1.2mm] flex items-center"
+    style={{ fontSize: `${9 * fontScale}px` }}
+  >
     <span className="font-bold mr-[1mm]">{label} :</span>
     <span className="truncate">{value || ""}</span>
   </div>
 );
 
-const CellHeader = ({ text, isLast = false }) => (
+const CellHeader = ({ text, isLast = false, fontScale = 1 }) => (
   <div
     className={`flex items-center justify-center border-r border-black ${isLast ? "border-r-0" : ""}`}
+    style={{ fontSize: `${8.5 * fontScale}px` }}
   >
     {text}
   </div>
 );
 
-const CellValue = ({ text, isLast = false }) => (
+const CellValue = ({ text, isLast = false, fontScale = 1 }) => (
   <div
     className={`flex items-center justify-center border-r border-black font-bold ${isLast ? "border-r-0" : ""}`}
+    style={{ fontSize: `${8.5 * fontScale}px` }}
   >
     {text}
   </div>
 );
 
-const SummaryRow = ({ left, right, height, split, centerRight = false }) => (
-  <div className="border-b border-black flex" style={{ height }}>
+const SummaryRow = ({
+  left,
+  right,
+  height,
+  split,
+  centerRight = false,
+  fontScale = 1,
+}) => (
+  <div
+    className="border-b border-black flex"
+    style={{ height, fontSize: `${9 * fontScale}px` }}
+  >
     <div
       className="border-r border-black px-[1.2mm] flex items-center font-bold"
       style={{ width: split }}
@@ -104,7 +138,7 @@ const SummaryRow = ({ left, right, height, split, centerRight = false }) => (
   </div>
 );
 
-const AttendanceCardPreview = ({ headerData, monthDate }) => {
+const AttendanceCardPreview = ({ headerData, monthDate, fontScale = 1 }) => {
   const rows = useMemo(() => getAttendanceRows(monthDate), [monthDate]);
   const monthLabel = formatAttendanceMonthYear(monthDate);
   const topSectionHeightMm = 31.4;
@@ -117,8 +151,13 @@ const AttendanceCardPreview = ({ headerData, monthDate }) => {
 
   return (
     <div
-      className="bg-white border-2 border-black text-[8px] leading-none text-black shadow-2xl overflow-hidden"
-      style={{ width: "110mm", height: "220mm", minWidth: "110mm" }}
+      className="bg-white border-2 border-black leading-none text-black shadow-2xl overflow-hidden"
+      style={{
+        width: "110mm",
+        height: "220mm",
+        minWidth: "110mm",
+        fontSize: `${9 * fontScale}px`,
+      }}
     >
       <div className="border-b border-black h-[9mm] px-[1.2mm] flex items-center gap-[1.2mm]">
         <img
@@ -126,25 +165,43 @@ const AttendanceCardPreview = ({ headerData, monthDate }) => {
           alt="BCW"
           className="w-[7mm] h-[7mm] object-contain"
         />
-        <div className="font-bold uppercase tracking-tight text-[7px] leading-tight">
+        <div
+          className="font-bold uppercase tracking-tight leading-tight"
+          style={{ fontSize: `${8.5 * fontScale}px` }}
+        >
           {headerData.companyName}
         </div>
       </div>
 
-      <InfoRow label="Employee Name" value={headerData.employeeName} />
-      <InfoRow label="Employee Number" value={headerData.employeeNumber} />
+      <InfoRow
+        label="Employee Name"
+        value={headerData.employeeName}
+        fontScale={fontScale}
+      />
+      <InfoRow
+        label="Employee Number"
+        value={headerData.employeeNumber}
+        fontScale={fontScale}
+      />
 
       <div className="border-b border-black h-[5.6mm] flex">
         <div className="w-[65%] border-r border-black px-[1.2mm] flex items-center">
           <span className="font-bold mr-[1mm]">Trade :</span>
           <span className="truncate">{headerData.trade || ""}</span>
         </div>
-        <div className="w-[35%] px-[1mm] flex items-center justify-center font-bold">
+        <div
+          className="w-[35%] px-[1mm] flex items-center justify-center font-bold"
+          style={{ fontSize: `${9 * fontScale}px` }}
+        >
           {monthLabel}
         </div>
       </div>
 
-      <InfoRow label="Site Name" value={headerData.siteName} />
+      <InfoRow
+        label="Site Name"
+        value={headerData.siteName}
+        fontScale={fontScale}
+      />
 
       <div
         className="border-b border-black"
@@ -154,13 +211,13 @@ const AttendanceCardPreview = ({ headerData, monthDate }) => {
           className="grid border-b border-black font-bold h-[6mm]"
           style={{ gridTemplateColumns: "10% 11% 18% 18% 12% 16% 15%" }}
         >
-          <CellHeader text="Date" />
-          <CellHeader text="DAY" />
-          <CellHeader text="Time In" />
-          <CellHeader text="Time Out" />
-          <CellHeader text="OT" />
-          <CellHeader text="Total Hrs" />
-          <CellHeader text="Sign" isLast />
+          <CellHeader text="Date" fontScale={fontScale} />
+          <CellHeader text="DAY" fontScale={fontScale} />
+          <CellHeader text="Time In" fontScale={fontScale} />
+          <CellHeader text="Time Out" fontScale={fontScale} />
+          <CellHeader text="OT" fontScale={fontScale} />
+          <CellHeader text="Total Hrs" fontScale={fontScale} />
+          <CellHeader text="Sign" isLast fontScale={fontScale} />
         </div>
 
         {rows.map((row, idx) => (
@@ -174,13 +231,13 @@ const AttendanceCardPreview = ({ headerData, monthDate }) => {
                 row.isCurrentMonthDay && row.isSunday ? "#fff459" : "#ffffff",
             }}
           >
-            <CellValue text={row.dateText} />
-            <CellValue text={row.dayText} />
-            <CellValue text="" />
-            <CellValue text="" />
-            <CellValue text="" />
-            <CellValue text="" />
-            <CellValue text="" isLast />
+            <CellValue text={row.dateText} fontScale={fontScale} />
+            <CellValue text={row.dayText} fontScale={fontScale} />
+            <CellValue text="" fontScale={fontScale} />
+            <CellValue text="" fontScale={fontScale} />
+            <CellValue text="" fontScale={fontScale} />
+            <CellValue text="" fontScale={fontScale} />
+            <CellValue text="" isLast fontScale={fontScale} />
           </div>
         ))}
       </div>
@@ -191,12 +248,14 @@ const AttendanceCardPreview = ({ headerData, monthDate }) => {
           right="Approved By: ...................."
           height="7mm"
           split="50%"
+          fontScale={fontScale}
         />
         <SummaryRow
           left="Total Hours:"
           right="Total OT Hours:"
           height="5.5mm"
           split="50%"
+          fontScale={fontScale}
         />
         <SummaryRow
           left="Grand Total:"
@@ -204,12 +263,14 @@ const AttendanceCardPreview = ({ headerData, monthDate }) => {
           height="5.5mm"
           split="70%"
           centerRight
+          fontScale={fontScale}
         />
         <SummaryRow
           left="Timekeeper Signature: ................."
           right=""
           height="8mm"
           split="70%"
+          fontScale={fontScale}
         />
       </div>
     </div>
@@ -310,8 +371,10 @@ const AttendanceSheetModal = ({
   const [pageOffsetY, setPageOffsetY] = useState(() =>
     getStoredOffsetMm(ATTENDANCE_OFFSET_Y_STORAGE_KEY),
   );
+  const [fontScale, setFontScale] = useState(getStoredFontScale);
   const [isEditing, setIsEditing] = useState(false);
   const [workerOverrides, setWorkerOverrides] = useState({});
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -319,9 +382,84 @@ const AttendanceSheetModal = ({
     setDownloadPreset(getStoredPresetKey());
     setPageOffsetX(getStoredOffsetMm(ATTENDANCE_OFFSET_X_STORAGE_KEY));
     setPageOffsetY(getStoredOffsetMm(ATTENDANCE_OFFSET_Y_STORAGE_KEY));
+    setFontScale(getStoredFontScale());
+    setPreferencesLoaded(false);
     setIsEditing(false);
     setWorkerOverrides({});
+
+    let cancelled = false;
+
+    const loadPreferences = async () => {
+      try {
+        const response = await staffProfileService.getProfile();
+        const preferences = response?.data?.attendanceSheetPreferences || {};
+
+        if (cancelled) return;
+
+        if (preferences.downloadPreset) {
+          setDownloadPreset(preferences.downloadPreset);
+          saveStoredValue(
+            ATTENDANCE_PRESET_STORAGE_KEY,
+            preferences.downloadPreset,
+          );
+        }
+
+        if (Number.isFinite(Number(preferences.offsetX))) {
+          const nextX = Number(preferences.offsetX);
+          setPageOffsetX(nextX);
+          saveStoredValue(ATTENDANCE_OFFSET_X_STORAGE_KEY, nextX);
+        }
+
+        if (Number.isFinite(Number(preferences.offsetY))) {
+          const nextY = Number(preferences.offsetY);
+          setPageOffsetY(nextY);
+          saveStoredValue(ATTENDANCE_OFFSET_Y_STORAGE_KEY, nextY);
+        }
+
+        if (Number.isFinite(Number(preferences.fontScale))) {
+          const nextScale = Number(preferences.fontScale);
+          setFontScale(nextScale);
+          saveStoredValue(ATTENDANCE_FONT_SCALE_STORAGE_KEY, nextScale);
+        }
+      } catch (error) {
+        console.error("Failed to load attendance preferences", error);
+      } finally {
+        if (!cancelled) {
+          setPreferencesLoaded(true);
+        }
+      }
+    };
+
+    loadPreferences();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen, monthValue]);
+
+  useEffect(() => {
+    if (!isOpen || !preferencesLoaded) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      staffProfileService.updateAttendanceSheetPreferences({
+        downloadPreset,
+        offsetX: pageOffsetX,
+        offsetY: pageOffsetY,
+        fontScale,
+      }).catch((error) => {
+        console.error("Failed to save attendance preferences", error);
+      });
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    isOpen,
+    preferencesLoaded,
+    downloadPreset,
+    pageOffsetX,
+    pageOffsetY,
+    fontScale,
+  ]);
 
   const monthDate = useMemo(
     () => parseAttendanceMonthInput(monthValue),
@@ -394,6 +532,7 @@ const AttendanceSheetModal = ({
         downloadPresetKey: downloadPreset,
         workerOverrides: scopedOverrides,
         pageOffsetMm: { x: pageOffsetX, y: pageOffsetY },
+        fontScale,
       });
       toast.success(
         `Downloaded attendance sheet for ${currentHeaderData.employeeName || "worker"}`,
@@ -416,6 +555,7 @@ const AttendanceSheetModal = ({
         downloadPresetKey: downloadPreset,
         workerOverrides,
         pageOffsetMm: { x: pageOffsetX, y: pageOffsetY },
+        fontScale,
       });
       toast.success(
         `Downloaded attendance sheets for ${validWorkers.length} workers`,
@@ -445,6 +585,7 @@ const AttendanceSheetModal = ({
         downloadPresetKey: downloadPreset,
         workerOverrides: scopedOverrides,
         pageOffsetMm: { x: pageOffsetX, y: pageOffsetY },
+        fontScale,
         action: "print",
       });
       toast.success("Print dialog opened for current attendance sheet");
@@ -466,6 +607,7 @@ const AttendanceSheetModal = ({
         downloadPresetKey: downloadPreset,
         workerOverrides,
         pageOffsetMm: { x: pageOffsetX, y: pageOffsetY },
+        fontScale,
         action: "print",
       });
       toast.success(
@@ -488,6 +630,12 @@ const AttendanceSheetModal = ({
     const nextValue = parseStoredNumber(event.target.value, 0);
     setter(nextValue);
     saveStoredValue(storageKey, nextValue);
+  };
+
+  const handleFontScaleChange = (event) => {
+    const nextValue = parseStoredNumber(event.target.value, 1);
+    setFontScale(nextValue);
+    saveStoredValue(ATTENDANCE_FONT_SCALE_STORAGE_KEY, nextValue);
   };
 
   const resetOffsets = () => {
@@ -536,6 +684,7 @@ const AttendanceSheetModal = ({
                         <AttendanceCardPreview
                           headerData={currentHeaderData}
                           monthDate={monthDate}
+                          fontScale={fontScale}
                         />
                       </AttendancePreviewViewport>
                     ) : (
@@ -596,6 +745,26 @@ const AttendanceSheetModal = ({
                       {hasWorkers
                         ? `Showing ${Math.min(currentIndex + 1, validWorkers.length)} of ${validWorkers.length}`
                         : "No records"}
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] uppercase tracking-wider font-black text-slate-400 mb-1.5">
+                        Text Size
+                      </label>
+                      <select
+                        value={fontScale}
+                        onChange={handleFontScaleChange}
+                        className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                      >
+                        {FONT_SCALE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                        Saved to your profile for next time.
+                      </p>
                     </div>
 
                     <div>
