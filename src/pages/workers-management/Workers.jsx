@@ -18,12 +18,14 @@ import {
   Clock,
   ShieldAlert,
   AlertCircle,
+  Check,
   CheckCircle,
+  ChevronDown,
   Save,
   Loader2,
   Truck,
   Building,
-  Map,
+  Map as MapIcon,
   FileText, // ✅ Added FileText Icon
   Car, // ✅ Driver icon
   UserCheck, // ✅ Office Staff icon
@@ -47,6 +49,8 @@ import {
   ATTENDANCE_DOWNLOAD_PRESETS,
   DEFAULT_ATTENDANCE_DOWNLOAD_PRESET,
   generateMonthlyAttendanceSheetsPdf,
+  getWorkerSiteName,
+  getWorkerTradeLabel,
 } from "../../utils/attendanceSheetPdf";
 
 // API
@@ -110,6 +114,114 @@ const getStoredAttendanceFontWeight = () => {
     : DEFAULT_ATTENDANCE_FONT_WEIGHT;
 };
 
+const MULTI_ALL_VALUE = "__all__";
+
+const MultiSelectDropdown = ({
+  value = [],
+  onChange,
+  options = [],
+  placeholder,
+  disabled = false,
+  minWidth = "min-w-[160px]",
+  onOpen,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  const selectedSet = new Set(value);
+  const selectedLabels = value
+    .map((val) => options.find((opt) => opt.value === val)?.label || val)
+    .filter(Boolean);
+
+  const buttonLabel =
+    selectedLabels.length === 0
+      ? placeholder
+      : selectedLabels.length === 1
+        ? selectedLabels[0]
+        : `${selectedLabels.length} selected`;
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggleValue = (nextValue) => {
+    if (nextValue === MULTI_ALL_VALUE) {
+      onChange([]);
+      return;
+    }
+
+    if (selectedSet.has(nextValue)) {
+      onChange(value.filter((item) => item !== nextValue));
+      return;
+    }
+
+    onChange([...value, nextValue]);
+  };
+
+  return (
+    <div ref={containerRef} className={`relative ${minWidth}`}>
+      <button
+        type="button"
+        onClick={() => {
+          if (disabled) return;
+          if (!isOpen && onOpen) onOpen();
+          setIsOpen((prev) => !prev);
+        }}
+        disabled={disabled}
+        className={`h-10 w-full px-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 flex items-center justify-between gap-2 ${
+          disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
+        }`}
+      >
+        <span className="truncate text-left flex-1">{buttonLabel}</span>
+        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+      </button>
+
+      {isOpen && !disabled && (
+        <div className="absolute z-[9999] mt-2 w-full bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden">
+          <ul className="max-h-60 overflow-auto py-1">
+            {options.map((option) => {
+              const isSelected = selectedSet.has(option.value);
+              return (
+                <li key={option.value}>
+                  <button
+                    type="button"
+                    onClick={() => toggleValue(option.value)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs font-semibold transition-colors ${
+                      isSelected
+                        ? "bg-indigo-50 text-indigo-700"
+                        : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span
+                      className={`h-4 w-4 rounded border flex items-center justify-center ${
+                        isSelected
+                          ? "border-indigo-500 bg-indigo-500 text-white"
+                          : "border-slate-300 bg-white"
+                      }`}
+                    >
+                      {isSelected && <Check className="w-3 h-3" />}
+                    </span>
+                    <span className="truncate">{option.label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Workers = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
@@ -159,6 +271,11 @@ const Workers = () => {
     isOpen: false,
     workers: [],
   });
+  const [attendanceFilterWorkers, setAttendanceFilterWorkers] = useState([]);
+  const [attendanceFilterLoaded, setAttendanceFilterLoaded] = useState(false);
+  const [attendanceFilterLoading, setAttendanceFilterLoading] = useState(false);
+  const [selectedAttendanceTrades, setSelectedAttendanceTrades] = useState([]);
+  const [selectedAttendanceSites, setSelectedAttendanceSites] = useState([]);
 
   const [pagination, setPagination] = useState({
     page: 1,
@@ -412,10 +529,159 @@ const Workers = () => {
     setAttendanceSheetModal({ isOpen: false, workers: [] });
   };
 
-  const handleOpenAttendanceSheetsModal = async () => {
-    const toastId = toast.loading("Loading attendance sheets...");
+  const normalizeAttendanceTrade = (worker) =>
+    getWorkerTradeLabel(worker) || "Unassigned";
+
+  const normalizeAttendanceSite = (worker) =>
+    getWorkerSiteName(worker) || "Unassigned";
+
+  const attendanceTradeOptions = useMemo(() => {
+    if (attendanceFilterLoading) {
+      return [{ value: "all", label: "Loading trades..." }];
+    }
+
+    if (!attendanceFilterLoaded) {
+      return [{ value: "all", label: "Click to load trades" }];
+    }
+
+    const hasSiteFilter = selectedAttendanceSites.length > 0;
+    const siteSet = hasSiteFilter ? new Set(selectedAttendanceSites) : null;
+    const baseWorkers = hasSiteFilter
+      ? attendanceFilterWorkers.filter((worker) => {
+          const siteLabel = normalizeAttendanceSite(worker);
+          return siteSet.has(siteLabel);
+        })
+      : attendanceFilterWorkers;
+
+    const counts = new Map();
+    baseWorkers.forEach((worker) => {
+      const tradeLabel = normalizeAttendanceTrade(worker);
+      counts.set(tradeLabel, (counts.get(tradeLabel) || 0) + 1);
+    });
+
+    return [
+      {
+        value: MULTI_ALL_VALUE,
+        label: `All Trades (${baseWorkers.length})`,
+      },
+      ...Array.from(counts.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([trade, count]) => ({
+          value: trade,
+          label: `${trade} (${count})`,
+        })),
+    ];
+  }, [
+    attendanceFilterWorkers,
+    attendanceFilterLoaded,
+    attendanceFilterLoading,
+    selectedAttendanceSites,
+  ]);
+
+  const attendanceSiteOptions = useMemo(() => {
+    if (attendanceFilterLoading) {
+      return [{ value: "all", label: "Loading sites..." }];
+    }
+
+    if (!attendanceFilterLoaded) {
+      return [{ value: "all", label: "Click to load sites" }];
+    }
+
+    const hasTradeFilter = selectedAttendanceTrades.length > 0;
+    const tradeSet = hasTradeFilter ? new Set(selectedAttendanceTrades) : null;
+    const baseWorkers = hasTradeFilter
+      ? attendanceFilterWorkers.filter((worker) => {
+          const tradeLabel = normalizeAttendanceTrade(worker);
+          return tradeSet.has(tradeLabel);
+        })
+      : attendanceFilterWorkers;
+
+    const counts = new Map();
+    baseWorkers.forEach((worker) => {
+      const siteLabel = normalizeAttendanceSite(worker);
+      counts.set(siteLabel, (counts.get(siteLabel) || 0) + 1);
+    });
+
+    return [
+      {
+        value: MULTI_ALL_VALUE,
+        label: `All Sites (${baseWorkers.length})`,
+      },
+      ...Array.from(counts.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([site, count]) => ({
+          value: site,
+          label: `${site} (${count})`,
+        })),
+    ];
+  }, [
+    attendanceFilterWorkers,
+    attendanceFilterLoaded,
+    attendanceFilterLoading,
+    selectedAttendanceTrades,
+  ]);
+
+  useEffect(() => {
+    if (!attendanceFilterLoaded) return;
+    const validTrades = new Set(
+      attendanceTradeOptions
+        .map((option) => option.value)
+        .filter((value) => value !== MULTI_ALL_VALUE),
+    );
+    setSelectedAttendanceTrades((prev) =>
+      prev.filter((value) => validTrades.has(value)),
+    );
+  }, [attendanceTradeOptions, attendanceFilterLoaded]);
+
+  useEffect(() => {
+    if (!attendanceFilterLoaded) return;
+    const validSites = new Set(
+      attendanceSiteOptions
+        .map((option) => option.value)
+        .filter((value) => value !== MULTI_ALL_VALUE),
+    );
+    setSelectedAttendanceSites((prev) =>
+      prev.filter((value) => validSites.has(value)),
+    );
+  }, [attendanceSiteOptions, attendanceFilterLoaded]);
+
+  const filteredAttendanceWorkers = useMemo(() => {
+    if (!attendanceFilterLoaded) return [];
+    const hasTradeFilter = selectedAttendanceTrades.length > 0;
+    const hasSiteFilter = selectedAttendanceSites.length > 0;
+    const tradeSet = hasTradeFilter ? new Set(selectedAttendanceTrades) : null;
+    const siteSet = hasSiteFilter ? new Set(selectedAttendanceSites) : null;
+
+    return attendanceFilterWorkers.filter((worker) => {
+      if (hasTradeFilter) {
+        const tradeLabel = normalizeAttendanceTrade(worker);
+        if (!tradeSet.has(tradeLabel)) return false;
+      }
+
+      if (hasSiteFilter) {
+        const siteLabel = normalizeAttendanceSite(worker);
+        if (!siteSet.has(siteLabel)) return false;
+      }
+
+      return true;
+    });
+  }, [
+    attendanceFilterWorkers,
+    attendanceFilterLoaded,
+    selectedAttendanceTrades,
+    selectedAttendanceSites,
+  ]);
+
+  const attendanceFilterCount = attendanceFilterLoaded
+    ? filteredAttendanceWorkers.length
+    : 0;
+
+  const loadAttendanceFilterWorkers = async (force = false) => {
+    if (attendanceFilterLoading) return attendanceFilterWorkers;
+    if (attendanceFilterLoaded && !force) return attendanceFilterWorkers;
+
+    setAttendanceFilterLoading(true);
     try {
-      setAttendanceModalLoading(true);
       const response = await workerService.list(
         1,
         10000,
@@ -428,15 +694,58 @@ const Workers = () => {
         (worker) => worker.status === 1,
       );
 
-      if (activeWorkers.length === 0) {
+      setAttendanceFilterWorkers(activeWorkers);
+      setAttendanceFilterLoaded(true);
+      return activeWorkers;
+    } catch (error) {
+      toast.error("Failed to load trade/site options");
+      setAttendanceFilterWorkers([]);
+      setAttendanceFilterLoaded(false);
+      return [];
+    } finally {
+      setAttendanceFilterLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setAttendanceFilterWorkers([]);
+    setAttendanceFilterLoaded(false);
+    setSelectedAttendanceTrades([]);
+    setSelectedAttendanceSites([]);
+
+    if (pp.isToolbarVisible("attendanceSheet")) {
+      loadAttendanceFilterWorkers(true);
+    }
+  }, [selectedCompany, filterServiceType, filterLocation]);
+
+  const handleOpenAttendanceSheetsModal = async () => {
+    const toastId = toast.loading("Loading attendance sheets...");
+    try {
+      setAttendanceModalLoading(true);
+      const activeWorkers = attendanceFilterLoaded
+        ? attendanceFilterWorkers
+        : await loadAttendanceFilterWorkers();
+
+      if (!activeWorkers || activeWorkers.length === 0) {
         toast.error("No active workers found for the current filters", {
           id: toastId,
         });
         return;
       }
 
+      const filteredWorkers = attendanceFilterLoaded
+        ? filteredAttendanceWorkers
+        : activeWorkers;
+
+      if (filteredWorkers.length === 0) {
+        toast.error("No workers match the selected trade/site filters", {
+          id: toastId,
+        });
+        return;
+      }
+
       await generateMonthlyAttendanceSheetsPdf({
-        workers: activeWorkers,
+        workers: filteredWorkers,
         monthValue: attendanceMonth,
         downloadPresetKey: getStoredAttendancePreset(),
         pageOffsetMm: {
@@ -449,7 +758,7 @@ const Workers = () => {
       });
 
       toast.success(
-        `Opened attendance sheets for ${activeWorkers.length} workers`,
+        `Opened attendance sheets for ${filteredWorkers.length} workers`,
         { id: toastId },
       );
     } catch (error) {
@@ -716,7 +1025,7 @@ const Workers = () => {
                 ) : r.service_type === "mall" ? (
                   <ShoppingBag className="w-3 h-3" />
                 ) : r.service_type === "site" ? (
-                  <Map className="w-3 h-3" />
+                  <MapIcon className="w-3 h-3" />
                 ) : r.service_type === "driver" ? (
                   <Car className="w-3 h-3" />
                 ) : r.service_type === "officestaff" ? (
@@ -856,7 +1165,7 @@ const Workers = () => {
                     key={`s-${i}`}
                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-50 text-orange-700 border border-orange-100 text-[11px] font-bold shadow-sm whitespace-normal mb-1"
                   >
-                    <Map className="w-3 h-3" />{" "}
+                    <MapIcon className="w-3 h-3" />{" "}
                     {typeof s === "object" ? s.name : `Site ${s}`}
                   </span>
                 ))}
@@ -1030,7 +1339,7 @@ const Workers = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end">
+          <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 w-full lg:w-auto justify-end">
             {pp.isToolbarVisible("search") && (
               <div className="relative w-full lg:w-64 group mr-2">
                 <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
@@ -1052,6 +1361,39 @@ const Workers = () => {
                     onChange={(e) => setAttendanceMonth(e.target.value)}
                     className="h-10 px-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                   />
+                  <MultiSelectDropdown
+                    value={selectedAttendanceTrades}
+                    onChange={setSelectedAttendanceTrades}
+                    options={attendanceTradeOptions}
+                    placeholder={
+                      attendanceTradeOptions.find(
+                        (option) => option.value === MULTI_ALL_VALUE,
+                      )?.label || "All Trades"
+                    }
+                    disabled={attendanceFilterLoading && !attendanceFilterLoaded}
+                    minWidth="min-w-[150px]"
+                    onOpen={loadAttendanceFilterWorkers}
+                  />
+                  <MultiSelectDropdown
+                    value={selectedAttendanceSites}
+                    onChange={setSelectedAttendanceSites}
+                    options={attendanceSiteOptions}
+                    placeholder={
+                      attendanceSiteOptions.find(
+                        (option) => option.value === MULTI_ALL_VALUE,
+                      )?.label || "All Sites"
+                    }
+                    disabled={attendanceFilterLoading && !attendanceFilterLoaded}
+                    minWidth="min-w-[170px]"
+                    onOpen={loadAttendanceFilterWorkers}
+                  />
+                  <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">
+                    {attendanceFilterLoaded
+                      ? `Count: ${attendanceFilterCount}`
+                      : attendanceFilterLoading
+                        ? "Loading..."
+                        : "Pick to load"}
+                  </span>
                   <button
                     onClick={handleOpenAttendanceSheetsModal}
                     disabled={attendanceModalLoading}
@@ -1123,7 +1465,7 @@ const Workers = () => {
                 { id: "all", icon: Briefcase, label: "All" },
                 { id: "mall", icon: ShoppingBag, label: "Mall" },
                 { id: "residence", icon: Building, label: "Res" },
-                { id: "site", icon: Map, label: "Site" },
+                { id: "site", icon: MapIcon, label: "Site" },
                 { id: "mobile", icon: Truck, label: "Mob" },
                 { id: "driver", icon: Car, label: "Drv" },
                 { id: "officestaff", icon: UserCheck, label: "Ofc" },
