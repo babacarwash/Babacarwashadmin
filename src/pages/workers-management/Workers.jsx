@@ -43,6 +43,11 @@ import WorkerModal from "../../components/modals/WorkerModal";
 import DeleteModal from "../../components/modals/DeleteModal";
 import AttendanceSheetModal from "../../components/modals/AttendanceSheetModal";
 import CustomDropdown from "../../components/ui/CustomDropdown";
+import {
+  ATTENDANCE_DOWNLOAD_PRESETS,
+  DEFAULT_ATTENDANCE_DOWNLOAD_PRESET,
+  generateMonthlyAttendanceSheetsPdf,
+} from "../../utils/attendanceSheetPdf";
 
 // API
 import { workerService } from "../../api/workerService";
@@ -54,6 +59,55 @@ const getDefaultAttendanceMonth = () => {
   const nextMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   nextMonthStart.setMonth(nextMonthStart.getMonth() + 1);
   return `${nextMonthStart.getFullYear()}-${String(nextMonthStart.getMonth() + 1).padStart(2, "0")}`;
+};
+
+const ATTENDANCE_PRESET_STORAGE_KEY = "attendanceSheetDownloadPreset";
+const ATTENDANCE_OFFSET_X_STORAGE_KEY = "attendanceSheetOffsetX";
+const ATTENDANCE_OFFSET_Y_STORAGE_KEY = "attendanceSheetOffsetY";
+const ATTENDANCE_FONT_SCALE_STORAGE_KEY = "attendanceSheetFontScale";
+const ATTENDANCE_FONT_WEIGHT_STORAGE_KEY = "attendanceSheetFontWeight";
+const DEFAULT_ATTENDANCE_FONT_SCALE = 1;
+const DEFAULT_ATTENDANCE_FONT_WEIGHT = "normal";
+
+const parseStoredNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const getStoredAttendancePreset = () => {
+  if (typeof window === "undefined") {
+    return DEFAULT_ATTENDANCE_DOWNLOAD_PRESET;
+  }
+
+  const stored = window.localStorage.getItem(ATTENDANCE_PRESET_STORAGE_KEY);
+  const isValid = ATTENDANCE_DOWNLOAD_PRESETS.some(
+    (preset) => preset.key === stored,
+  );
+
+  return isValid ? stored : DEFAULT_ATTENDANCE_DOWNLOAD_PRESET;
+};
+
+const getStoredAttendanceOffsetMm = (key) => {
+  if (typeof window === "undefined") return 0;
+  return parseStoredNumber(window.localStorage.getItem(key), 0);
+};
+
+const getStoredAttendanceFontScale = () => {
+  if (typeof window === "undefined") return DEFAULT_ATTENDANCE_FONT_SCALE;
+  return parseStoredNumber(
+    window.localStorage.getItem(ATTENDANCE_FONT_SCALE_STORAGE_KEY),
+    DEFAULT_ATTENDANCE_FONT_SCALE,
+  );
+};
+
+const getStoredAttendanceFontWeight = () => {
+  if (typeof window === "undefined") return DEFAULT_ATTENDANCE_FONT_WEIGHT;
+  const stored = window.localStorage.getItem(
+    ATTENDANCE_FONT_WEIGHT_STORAGE_KEY,
+  );
+  return stored === "bold" || stored === "normal"
+    ? stored
+    : DEFAULT_ATTENDANCE_FONT_WEIGHT;
 };
 
 const Workers = () => {
@@ -381,16 +435,22 @@ const Workers = () => {
         return;
       }
 
-      setAttendanceSheetModal({
-        isOpen: true,
+      await generateMonthlyAttendanceSheetsPdf({
         workers: activeWorkers,
+        monthValue: attendanceMonth,
+        downloadPresetKey: getStoredAttendancePreset(),
+        pageOffsetMm: {
+          x: getStoredAttendanceOffsetMm(ATTENDANCE_OFFSET_X_STORAGE_KEY),
+          y: getStoredAttendanceOffsetMm(ATTENDANCE_OFFSET_Y_STORAGE_KEY),
+        },
+        fontScale: getStoredAttendanceFontScale(),
+        fontWeight: getStoredAttendanceFontWeight(),
+        action: "preview",
       });
 
       toast.success(
-        `Loaded attendance sheets for ${activeWorkers.length} workers`,
-        {
-          id: toastId,
-        },
+        `Opened attendance sheets for ${activeWorkers.length} workers`,
+        { id: toastId },
       );
     } catch (error) {
       toast.error("Failed to load attendance sheets", { id: toastId });

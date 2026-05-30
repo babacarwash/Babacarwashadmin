@@ -5,6 +5,7 @@ const DESIGN_PAGE_HEIGHT_MM = 220;
 const DEFAULT_DESIGN_MARGIN_MM = 0;
 const LOGO_FILE_PATH = "/carwash.jpeg";
 const DEFAULT_ATTENDANCE_TEXT_SCALE = 1;
+const DEFAULT_ATTENDANCE_TEXT_WEIGHT = "normal";
 
 export const DEFAULT_ATTENDANCE_DOWNLOAD_PRESET = "DL";
 
@@ -225,15 +226,47 @@ const truncateToWidth = (doc, rawText, maxWidth) => {
   return "";
 };
 
-const drawInlineField = ({ doc, label, value, x, y, width }) => {
+const fitTextToWidth = (doc, rawText, maxWidth) => {
+  const text = String(rawText ?? "").trim();
+  if (!text) return "";
+
+  if (doc.getTextWidth(text) <= maxWidth) return text;
+
+  let cut = text.length;
+  while (cut > 0) {
+    const candidate = text.slice(0, cut);
+    if (doc.getTextWidth(candidate) <= maxWidth) return candidate;
+    cut -= 1;
+  }
+
+  return "";
+};
+
+const resolveBaseFontStyle = (fontWeight) =>
+  fontWeight === "bold" ? "bold" : "normal";
+
+const drawInlineField = ({
+  doc,
+  label,
+  value,
+  x,
+  y,
+  width,
+  valueFontStyle = "normal",
+  baseline = "middle",
+}) => {
   doc.setFont("helvetica", "bold");
   const labelText = `${label} : `;
-  doc.text(labelText, x, y);
-
   const labelWidth = doc.getTextWidth(labelText);
-  doc.setFont("helvetica", "normal");
+
+  doc.setFont("helvetica", valueFontStyle);
   const valueText = truncateToWidth(doc, value, width - labelWidth - 1);
-  doc.text(valueText || "", x + labelWidth, y);
+  const textOptions = { baseline };
+
+  doc.setFont("helvetica", "bold");
+  doc.text(labelText, x, y, textOptions);
+  doc.setFont("helvetica", valueFontStyle);
+  doc.text(valueText || "", x + labelWidth, y, textOptions);
 };
 
 const drawHeader = (
@@ -245,6 +278,7 @@ const drawHeader = (
   offsetY,
   designMarginMm,
   fontScale,
+  fontWeight,
 ) => {
   const x = offsetX + designMarginMm;
   const width = DESIGN_PAGE_WIDTH_MM - designMarginMm * 2;
@@ -252,6 +286,7 @@ const drawHeader = (
   const logoRowHeight = 9;
   const baseFontSize = 9.6;
   const scaleFontSize = (value) => value * fontScale;
+  const baseFontStyle = resolveBaseFontStyle(fontWeight);
 
   let y = offsetY + designMarginMm;
 
@@ -290,8 +325,9 @@ const drawHeader = (
       label,
       value,
       x: x + 1.2,
-      y: y + 3.7,
+      y: y + rowHeight / 2,
       width: width - 2.4,
+      valueFontStyle: baseFontStyle,
     });
     y += rowHeight;
   };
@@ -309,16 +345,17 @@ const drawHeader = (
     label: "Trade",
     value: headerData.trade,
     x: x + 1.2,
-    y: y + 3.7,
+    y: y + rowHeight / 2,
     width: splitX - x - 2,
+    valueFontStyle: baseFontStyle,
   });
 
   doc.setFont("helvetica", "bold");
   doc.text(
     truncateToWidth(doc, formatAttendanceMonthYear(monthDate), width * 0.33),
     splitX + (width * 0.35) / 2,
-    y + 3.7,
-    { align: "center" },
+    y + rowHeight / 2,
+    { align: "center", baseline: "middle" },
   );
   y += rowHeight;
 
@@ -411,13 +448,16 @@ const drawAttendanceGrid = (
   rows.forEach((row, idx) => {
     if (!row.isCurrentMonthDay) return;
 
-    const rowY = startY + headerHeight + idx * rowHeight + 2.8;
+    const rowY = startY + headerHeight + idx * rowHeight;
+    const textY = rowY + rowHeight / 2;
 
-    doc.text(row.dateText, x + colWidths[0] / 2, rowY, {
+    doc.text(row.dateText, x + colWidths[0] / 2, textY, {
       align: "center",
+      baseline: "middle",
     });
-    doc.text(row.dayText, x + colWidths[0] + colWidths[1] / 2, rowY, {
+    doc.text(row.dayText, x + colWidths[0] + colWidths[1] / 2, textY, {
       align: "center",
+      baseline: "middle",
     });
   });
 
@@ -427,6 +467,8 @@ const drawAttendanceGrid = (
 const drawSummary = (doc, startY, offsetX, designMarginMm, fontScale) => {
   const x = offsetX + designMarginMm;
   const width = DESIGN_PAGE_WIDTH_MM - designMarginMm * 2;
+  const paddingX = 2;
+  const halfWidth = width / 2;
 
   const row1 = SUMMARY_ROW1_HEIGHT_MM;
   const row2 = SUMMARY_ROW2_HEIGHT_MM;
@@ -439,20 +481,49 @@ const drawSummary = (doc, startY, offsetX, designMarginMm, fontScale) => {
   doc.line(x + width / 2, y, x + width / 2, y + row1);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9.4 * fontScale);
-  doc.text("Employee Signature: .....................", x + 2, y + 4.8);
-  doc.text("Approved By: .....................", x + width / 2 + 2, y + 4.8);
+  doc.text(
+    fitTextToWidth(
+      doc,
+      "Employee Signature: .....................",
+      halfWidth - paddingX * 2,
+    ),
+    x + paddingX,
+    y + 4.8,
+  );
+  doc.text(
+    fitTextToWidth(
+      doc,
+      "Approved By: .....................",
+      halfWidth - paddingX * 2,
+    ),
+    x + halfWidth + paddingX,
+    y + 4.8,
+  );
 
   y += row1;
   doc.rect(x, y, width, row2);
   doc.line(x + width / 2, y, x + width / 2, y + row2);
-  doc.text("Total Hours:", x + 2, y + 4.3);
-  doc.text("Total OT Hours:", x + width / 2 + 2, y + 4.3);
+  doc.text(
+    fitTextToWidth(doc, "Total Hours:", halfWidth - paddingX * 2),
+    x + paddingX,
+    y + 4.3,
+  );
+  doc.text(
+    fitTextToWidth(doc, "Total OT Hours:", halfWidth - paddingX * 2),
+    x + halfWidth + paddingX,
+    y + 4.3,
+  );
 
   y += row2;
   const splitX = x + width * 0.7;
+  const leftWidth = width * 0.7;
   doc.rect(x, y, width, row3);
   doc.line(splitX, y, splitX, y + row3);
-  doc.text("Grand Total:", x + 2, y + 4.3);
+  doc.text(
+    fitTextToWidth(doc, "Grand Total:", leftWidth - paddingX * 2),
+    x + paddingX,
+    y + 4.3,
+  );
   doc.text("Break Time", splitX + (width * 0.3) / 2, y + 4.3, {
     align: "center",
   });
@@ -460,7 +531,15 @@ const drawSummary = (doc, startY, offsetX, designMarginMm, fontScale) => {
   y += row3;
   doc.rect(x, y, width, row4);
   doc.line(splitX, y, splitX, y + row4);
-  doc.text("Timekeeper Signature: .................", x + 2, y + 5);
+  doc.text(
+    fitTextToWidth(
+      doc,
+      "Timekeeper Signature: .................",
+      leftWidth - paddingX * 2,
+    ),
+    x + paddingX,
+    y + 5,
+  );
 };
 
 const drawAttendanceCard = (
@@ -473,6 +552,7 @@ const drawAttendanceCard = (
   workerOverride,
   designMarginMm,
   fontScale,
+  fontWeight,
 ) => {
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.25);
@@ -493,6 +573,7 @@ const drawAttendanceCard = (
     offsetY,
     designMarginMm,
     fontScale,
+    fontWeight,
   );
   const summaryStartY = drawAttendanceGrid(
     doc,
@@ -514,6 +595,7 @@ export const generateMonthlyAttendanceSheetsPdf = async ({
   workerOverrides = {},
   pageOffsetMm = { x: 0, y: 0 },
   fontScale = DEFAULT_ATTENDANCE_TEXT_SCALE,
+  fontWeight = DEFAULT_ATTENDANCE_TEXT_WEIGHT,
   action = "download",
 }) => {
   if (!Array.isArray(workers) || workers.length === 0) {
@@ -527,6 +609,7 @@ export const generateMonthlyAttendanceSheetsPdf = async ({
   const offsetYMm = Number.isFinite(pageOffsetMm?.y) ? pageOffsetMm.y : 0;
   const safeFontScale =
     Number.isFinite(fontScale) && fontScale > 0 ? fontScale : 1;
+  const safeFontWeight = fontWeight === "bold" ? "bold" : "normal";
   const designMarginMm = Number.isFinite(preset.designMarginMm)
     ? preset.designMarginMm
     : DEFAULT_DESIGN_MARGIN_MM;
@@ -567,6 +650,7 @@ export const generateMonthlyAttendanceSheetsPdf = async ({
       override,
       designMarginMm,
       safeFontScale,
+      safeFontWeight,
     );
   });
 
@@ -577,19 +661,19 @@ export const generateMonthlyAttendanceSheetsPdf = async ({
       : `_${preset.suffix}`;
   const fileName = `${fileNamePrefix}_${safeMonth}${suffix}.pdf`;
 
-  if (action === "print") {
+  if (action === "print" || action === "preview") {
     if (typeof window === "undefined") {
-      throw new Error("Print is only available in browser environment");
+      throw new Error("Preview is only available in browser environment");
     }
 
-    if (typeof doc.autoPrint === "function") {
+    if (action === "print" && typeof doc.autoPrint === "function") {
       doc.autoPrint();
     }
 
     const blobUrl = doc.output("bloburl");
     const printWindow = window.open(blobUrl, "_blank");
     if (!printWindow) {
-      throw new Error("Popup blocked. Please allow popups to print.");
+      throw new Error("Popup blocked. Please allow popups to open preview.");
     }
     return { fileName, blobUrl };
   }

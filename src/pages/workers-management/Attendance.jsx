@@ -392,17 +392,18 @@ const Attendance = () => {
   };
 
   const handleOpenAttendanceSheetModal = (row) => {
-    const person = row?.worker || row?.staff;
-    if (!person?._id) {
-      toast.error("Employee details are unavailable for attendance sheet");
+    if (!Array.isArray(employees) || employees.length === 0) {
+      toast.error("Workers are still loading for attendance sheet");
       return;
     }
 
-    const hydratedPerson = hydratePersonForAttendanceSheet(person);
+    const hydratedWorkers = employees
+      .map((person) => hydratePersonForAttendanceSheet(person))
+      .filter((person) => person?._id);
 
     setAttendanceSheetModal({
       isOpen: true,
-      workers: [hydratedPerson],
+      workers: hydratedWorkers,
       monthValue: getMonthValueFromDate(row?.date || dateRange.startDate),
     });
   };

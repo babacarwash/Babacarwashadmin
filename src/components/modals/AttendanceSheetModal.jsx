@@ -37,7 +37,9 @@ const ATTENDANCE_PRESET_STORAGE_KEY = "attendanceSheetDownloadPreset";
 const ATTENDANCE_OFFSET_X_STORAGE_KEY = "attendanceSheetOffsetX";
 const ATTENDANCE_OFFSET_Y_STORAGE_KEY = "attendanceSheetOffsetY";
 const ATTENDANCE_FONT_SCALE_STORAGE_KEY = "attendanceSheetFontScale";
+const ATTENDANCE_FONT_WEIGHT_STORAGE_KEY = "attendanceSheetFontWeight";
 const DEFAULT_ATTENDANCE_FONT_SCALE = 1;
+const DEFAULT_ATTENDANCE_FONT_WEIGHT = "normal";
 
 const FONT_SCALE_OPTIONS = [
   { label: "Small", value: 0.9 },
@@ -50,6 +52,21 @@ const FONT_SCALE_OPTIONS = [
 const parseStoredNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const FONT_WEIGHT_OPTIONS = [
+  { label: "Normal", value: "normal" },
+  { label: "Bold", value: "bold" },
+];
+
+const getStoredFontWeight = () => {
+  if (typeof window === "undefined") return DEFAULT_ATTENDANCE_FONT_WEIGHT;
+  const stored = window.localStorage.getItem(
+    ATTENDANCE_FONT_WEIGHT_STORAGE_KEY,
+  );
+  return stored === "bold" || stored === "normal"
+    ? stored
+    : DEFAULT_ATTENDANCE_FONT_WEIGHT;
 };
 
 const getStoredPresetKey = () => {
@@ -88,7 +105,7 @@ const InfoRow = ({ label, value, fontScale = 1 }) => (
     className="border-b border-black h-[5.6mm] px-[1.2mm] flex items-center"
     style={{ fontSize: `${9 * fontScale}px` }}
   >
-    <span className="font-bold mr-[1mm]">{label} :</span>
+    <span className="font-bold mr-[1mm] whitespace-nowrap">{label} :</span>
     <span className="truncate">{value || ""}</span>
   </div>
 );
@@ -124,13 +141,13 @@ const SummaryRow = ({
     style={{ height, fontSize: `${9 * fontScale}px` }}
   >
     <div
-      className="border-r border-black px-[1.2mm] flex items-center font-bold"
+      className="border-r border-black px-[1.2mm] flex items-center font-bold overflow-hidden whitespace-nowrap"
       style={{ width: split }}
     >
       {left}
     </div>
     <div
-      className={`px-[1.2mm] flex items-center font-bold ${centerRight ? "justify-center" : ""}`}
+      className={`px-[1.2mm] flex items-center font-bold overflow-hidden whitespace-nowrap ${centerRight ? "justify-center" : ""}`}
       style={{ width: `calc(100% - ${split})` }}
     >
       {right}
@@ -138,7 +155,12 @@ const SummaryRow = ({
   </div>
 );
 
-const AttendanceCardPreview = ({ headerData, monthDate, fontScale = 1 }) => {
+const AttendanceCardPreview = ({
+  headerData,
+  monthDate,
+  fontScale = 1,
+  fontWeight = DEFAULT_ATTENDANCE_FONT_WEIGHT,
+}) => {
   const rows = useMemo(() => getAttendanceRows(monthDate), [monthDate]);
   const monthLabel = formatAttendanceMonthYear(monthDate);
   const topSectionHeightMm = 31.4;
@@ -148,6 +170,7 @@ const AttendanceCardPreview = ({ headerData, monthDate, fontScale = 1 }) => {
     (220 - topSectionHeightMm - tableHeaderHeightMm - summarySectionHeightMm) /
     31;
   const tableHeightMm = tableHeaderHeightMm + tableRowHeightMm * 31;
+  const resolvedFontWeight = fontWeight === "bold" ? 700 : 400;
 
   return (
     <div
@@ -157,6 +180,7 @@ const AttendanceCardPreview = ({ headerData, monthDate, fontScale = 1 }) => {
         height: "220mm",
         minWidth: "110mm",
         fontSize: `${9 * fontScale}px`,
+        fontWeight: resolvedFontWeight,
       }}
     >
       <div className="border-b border-black h-[9mm] px-[1.2mm] flex items-center gap-[1.2mm]">
@@ -186,7 +210,7 @@ const AttendanceCardPreview = ({ headerData, monthDate, fontScale = 1 }) => {
 
       <div className="border-b border-black h-[5.6mm] flex">
         <div className="w-[65%] border-r border-black px-[1.2mm] flex items-center">
-          <span className="font-bold mr-[1mm]">Trade :</span>
+          <span className="font-bold mr-[1mm] whitespace-nowrap">Trade :</span>
           <span className="truncate">{headerData.trade || ""}</span>
         </div>
         <div
@@ -372,6 +396,7 @@ const AttendanceSheetModal = ({
     getStoredOffsetMm(ATTENDANCE_OFFSET_Y_STORAGE_KEY),
   );
   const [fontScale, setFontScale] = useState(getStoredFontScale);
+  const [fontWeight, setFontWeight] = useState(getStoredFontWeight);
   const [isEditing, setIsEditing] = useState(false);
   const [workerOverrides, setWorkerOverrides] = useState({});
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
@@ -383,6 +408,7 @@ const AttendanceSheetModal = ({
     setPageOffsetX(getStoredOffsetMm(ATTENDANCE_OFFSET_X_STORAGE_KEY));
     setPageOffsetY(getStoredOffsetMm(ATTENDANCE_OFFSET_Y_STORAGE_KEY));
     setFontScale(getStoredFontScale());
+    setFontWeight(getStoredFontWeight());
     setPreferencesLoaded(false);
     setIsEditing(false);
     setWorkerOverrides({});
@@ -421,6 +447,15 @@ const AttendanceSheetModal = ({
           setFontScale(nextScale);
           saveStoredValue(ATTENDANCE_FONT_SCALE_STORAGE_KEY, nextScale);
         }
+
+        if (
+          preferences.fontWeight === "bold" ||
+          preferences.fontWeight === "normal"
+        ) {
+          const nextWeight = preferences.fontWeight;
+          setFontWeight(nextWeight);
+          saveStoredValue(ATTENDANCE_FONT_WEIGHT_STORAGE_KEY, nextWeight);
+        }
       } catch (error) {
         console.error("Failed to load attendance preferences", error);
       } finally {
@@ -441,14 +476,17 @@ const AttendanceSheetModal = ({
     if (!isOpen || !preferencesLoaded) return undefined;
 
     const timeoutId = window.setTimeout(() => {
-      staffProfileService.updateAttendanceSheetPreferences({
-        downloadPreset,
-        offsetX: pageOffsetX,
-        offsetY: pageOffsetY,
-        fontScale,
-      }).catch((error) => {
-        console.error("Failed to save attendance preferences", error);
-      });
+      staffProfileService
+        .updateAttendanceSheetPreferences({
+          downloadPreset,
+          offsetX: pageOffsetX,
+          offsetY: pageOffsetY,
+          fontScale,
+          fontWeight,
+        })
+        .catch((error) => {
+          console.error("Failed to save attendance preferences", error);
+        });
     }, 350);
 
     return () => window.clearTimeout(timeoutId);
@@ -459,6 +497,7 @@ const AttendanceSheetModal = ({
     pageOffsetX,
     pageOffsetY,
     fontScale,
+    fontWeight,
   ]);
 
   const monthDate = useMemo(
@@ -533,6 +572,7 @@ const AttendanceSheetModal = ({
         workerOverrides: scopedOverrides,
         pageOffsetMm: { x: pageOffsetX, y: pageOffsetY },
         fontScale,
+        fontWeight,
       });
       toast.success(
         `Downloaded attendance sheet for ${currentHeaderData.employeeName || "worker"}`,
@@ -556,6 +596,7 @@ const AttendanceSheetModal = ({
         workerOverrides,
         pageOffsetMm: { x: pageOffsetX, y: pageOffsetY },
         fontScale,
+        fontWeight,
       });
       toast.success(
         `Downloaded attendance sheets for ${validWorkers.length} workers`,
@@ -586,6 +627,7 @@ const AttendanceSheetModal = ({
         workerOverrides: scopedOverrides,
         pageOffsetMm: { x: pageOffsetX, y: pageOffsetY },
         fontScale,
+        fontWeight,
         action: "print",
       });
       toast.success("Print dialog opened for current attendance sheet");
@@ -608,6 +650,7 @@ const AttendanceSheetModal = ({
         workerOverrides,
         pageOffsetMm: { x: pageOffsetX, y: pageOffsetY },
         fontScale,
+        fontWeight,
         action: "print",
       });
       toast.success(
@@ -636,6 +679,12 @@ const AttendanceSheetModal = ({
     const nextValue = parseStoredNumber(event.target.value, 1);
     setFontScale(nextValue);
     saveStoredValue(ATTENDANCE_FONT_SCALE_STORAGE_KEY, nextValue);
+  };
+
+  const handleFontWeightChange = (event) => {
+    const nextValue = event.target.value === "bold" ? "bold" : "normal";
+    setFontWeight(nextValue);
+    saveStoredValue(ATTENDANCE_FONT_WEIGHT_STORAGE_KEY, nextValue);
   };
 
   const resetOffsets = () => {
@@ -685,6 +734,7 @@ const AttendanceSheetModal = ({
                           headerData={currentHeaderData}
                           monthDate={monthDate}
                           fontScale={fontScale}
+                          fontWeight={fontWeight}
                         />
                       </AttendancePreviewViewport>
                     ) : (
@@ -757,6 +807,26 @@ const AttendanceSheetModal = ({
                         className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
                       >
                         {FONT_SCALE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                        Saved to your profile for next time.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] uppercase tracking-wider font-black text-slate-400 mb-1.5">
+                        Font Weight
+                      </label>
+                      <select
+                        value={fontWeight}
+                        onChange={handleFontWeightChange}
+                        className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                      >
+                        {FONT_WEIGHT_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>
                             {option.label}
                           </option>
